@@ -82,12 +82,31 @@ public sealed class DebugUI : IDisposable
             string name = param.Name;
             switch (param.Kind)
             {
+                case ShaderParamKind.Float when param.Range is { } range:
+                    g.Slider(name, value.X, range.X, range.Y, v => material.SetShaderParam(name, v));
+                    break;
                 case ShaderParamKind.Float:
                     g.Drag(name, value.X, 0.02f, v => material.SetShaderParam(name, v));
+                    break;
+                case ShaderParamKind.Bool:
+                    g.Check(name, value.X > 0.5f, v => material.SetShaderParam(name, v ? 1f : 0f));
                     break;
                 case ShaderParamKind.Color:
                     g.Rgb(name, new Color4(value.X, value.Y, value.Z, 1f), c => material.SetShaderParam(name, c.R, c.G, c.B));
                     break;
+                case ShaderParamKind.Vec2:
+                {
+                    var v2 = new Vector2(value.X, value.Y);
+                    if (g.DragVector2(name, ref v2, 0.02f)) material.SetShaderParam(name, v2.X, v2.Y);
+                    break;
+                }
+                case ShaderParamKind.Texture:
+                {
+                    string path = material.ShaderTextures.TryGetValue(name, out var chosen) ? chosen : param.DefaultTexture;
+                    if (g.InputText(name, ref path, "Assets/Textures/...png")) material.SetShaderTexture(name, path.Trim());
+                    if (path.Length > 0 && !File.Exists(ModelCache.ResolvePath(path))) g.TextStatus("File not found: white is used.", error: true);
+                    break;
+                }
                 default:
                     g.Drag3(name, new Vector3(value.X, value.Y, value.Z), 0.02f, v => material.SetShaderParam(name, v.X, v.Y, v.Z));
                     break;

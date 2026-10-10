@@ -191,6 +191,92 @@ public sealed class Water : IDisposable
     /// <summary>Advances the animation. Called by <see cref="Scene.Update"/>.</summary>
     public void Update(float deltaTime) => Time += deltaTime * Speed;
 
+    // ---- splashes and wakes ----------------------------------------------------------------------
+
+    /// <summary>How many ripple rings can run at once (must match MAX_SPLASHES in water.frag).</summary>
+    public const int MaxSplashes = 24;
+
+    private readonly Vector4[] _splashes = new Vector4[MaxSplashes];   // x, z, start time, strength (0 = unused)
+    private int _nextSplash;
+
+    /// <summary>Seconds a splash's rings travel before they have faded away.</summary>
+    internal const float SplashLife = 4f;
+
+    /// <summary>Brightness of the caustics: the dancing light the waves focus onto everything under the water (0 = none).</summary>
+    public float Caustics { get; set; } = 1f;
+
+    /// <summary>Strength of the rings moving things leave on the water (0 = they leave none).</summary>
+    public float Interaction { get; set; } = 1f;
+
+    /// <summary>
+    /// Sends rings out across the water from <paramref name="position"/> (an object falling in, a stone, an oar).
+    /// <paramref name="strength"/> around 1 is a splash, 0.2 a gentle wake. The oldest ring gives way when too many run.
+    /// </summary>
+    public void Splash(Vector3 position, float strength = 1f)
+    {
+        if (strength <= 0f) return;
+        _splashes[_nextSplash] = new Vector4(position.X, position.Z, Time, MathF.Min(strength, 3f));
+        _nextSplash = (_nextSplash + 1) % MaxSplashes;
+    }
+
+    /// <summary>The live splashes for the shader (finished ones have strength 0).</summary>
+    internal ReadOnlySpan<Vector4> Splashes
+    {
+        get
+        {
+            for (int i = 0; i < MaxSplashes; i++)
+                if (_splashes[i].W > 0f && Time - _splashes[i].Z > SplashLife) _splashes[i].W = 0f;
+            return _splashes;
+        }
+    }
+
+    /// <summary>True if (x, z) lies on this water (always, for a sea that reaches the horizon).</summary>
+    public bool Contains(float x, float z) =>
+        ReachHorizon || (MathF.Abs(x - Position.X) <= _width * 0.5f && MathF.Abs(z - Position.Z) <= _depth * 0.5f);
+
+    // Things that move through the water leave a wake: their last place and when they last made a ring.
+    private readonly Dictionary<GameObject, (Vector3 position, bool inside, float lastRing)> _movers = new();
+    private readonly List<GameObject> _gone = new();
+
+    /// <summary>
+    /// Splashes and wakes from the scene's moving objects (those driven by a script or OnUpdate): a splash when one
+    /// falls in, rings behind it while it moves through the water. Called by <see cref="Scene.Update"/>.
+    /// </summary>
+    internal void TrackMovers(IEnumerable<GameObject> movers, float deltaTime)
+    {
+        if (Interaction <= 0f || deltaTime <= 0f) return;
+        foreach (var obj in movers)
+        {
+            var bounds = obj.Bounds;
+            var center = bounds.Center;
+            bool touching = Contains(center.X, center.Z) && bounds.Min.Y < Level + 0.05f && bounds.Max.Y > Level - 0.05f;
+            if (!_movers.TryGetValue(obj, out var state))
+            {
+                _movers[obj] = (center, touching, Time);
+                continue;
+            }
+
+            var velocity = (center - state.position) / deltaTime;
+            float speed = velocity.Length;
+            float size = MathF.Max(bounds.Size.X, bounds.Size.Z);
+            if (touching && !state.inside && velocity.Y < -0.5f)
+            {
+                Splash(new Vector3(center.X, Level, center.Z), MathF.Min(-velocity.Y * 0.35f * (0.5f + size), 2.5f) * Interaction);
+                state.lastRing = Time;
+            }
+            else if (touching && new Vector2(velocity.X, velocity.Z).Length > 0.3f && Time - state.lastRing > 0.3f)
+            {
+                Splash(new Vector3(center.X, Level, center.Z), MathF.Min(speed * 0.12f * (0.5f + size), 0.8f) * Interaction);
+                state.lastRing = Time;
+            }
+            _movers[obj] = (center, touching, state.lastRing);
+        }
+
+        foreach (var obj in _movers.Keys) if (obj.IsDestroyed) _gone.Add(obj);
+        foreach (var obj in _gone) _movers.Remove(obj);
+        _gone.Clear();
+    }
+
     /// <summary>Brings the FFT waves to the current time and uploads them (GL thread; the renderer calls it).</summary>
     internal void UpdateOcean()
     {

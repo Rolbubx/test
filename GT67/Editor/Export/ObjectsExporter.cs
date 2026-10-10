@@ -90,6 +90,8 @@ public static class ObjectsExporter
             else context.Warnings.Add($"'{obj.Name}': the texture is not a file, so it was left out.");
         }
 
+        WriteCustomShader(context, w, v, obj);
+
         foreach (var script in obj.Scripts)
         {
             var type = script.GetType();
@@ -106,6 +108,38 @@ public static class ObjectsExporter
             w.Line($"{v}.AddChild({childVariable});");
         }
         return v;
+    }
+
+    /// <summary>
+    /// The object's custom shader (a .shader file): its name, the values and images the object gives its parameters,
+    /// and the file itself shipped into Assets/Shaders, where the game's shader library finds it.
+    /// </summary>
+    private static void WriteCustomShader(ExportContext context, CodeWriter w, string v, GameObject obj)
+    {
+        var material = obj.Material;
+        if (material.CustomShader.Length == 0) return;
+
+        string? file = new[]
+            {
+                Path.Combine(context.Paths.Root, "Shaders", "Custom"),
+                Path.Combine(AppContext.BaseDirectory, "Shaders", "Custom"),
+                Path.Combine(AppContext.BaseDirectory, "Assets", "Game", "Shaders"),
+            }
+            .Select(folder => Path.Combine(folder, material.CustomShader + ShaderLibrary.Extension))
+            .FirstOrDefault(File.Exists);
+        if (file == null || context.Assets.ShipFile(file, "Shaders") == null)
+            context.Warnings.Add($"'{obj.Name}': shader file '{material.CustomShader}{ShaderLibrary.Extension}' not found, so the game draws it normally.");
+
+        w.Line($"{v}.SetShader({Str(material.CustomShader)});");
+        foreach (var (name, value) in material.ShaderParams)
+            w.Line($"{v}.SetShaderParam({Str(name)}, {F(value.X)}, {F(value.Y)}, {F(value.Z)});");
+        foreach (var (name, path) in material.ShaderTextures)
+        {
+            if (path.Length == 0) continue;
+            string? shipped = context.Assets.ShipFile(path, "Textures");
+            if (shipped != null) w.Line($"{v}.SetShaderTexture({Str(name)}, {Str(shipped)});");
+            else context.Warnings.Add($"'{obj.Name}': shader texture '{path}' not found, so it was left out.");
+        }
     }
 
     private static string MeshExpression(ExportContext context, GameObject obj, ref bool bakedMeshes)

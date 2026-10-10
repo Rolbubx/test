@@ -41,10 +41,21 @@ public sealed class Material
 
     public void ClearShaderParam(string name) => _shaderParams?.Remove(name);
 
+    private Dictionary<string, string>? _shaderTextures;
+
+    /// <summary>Images this object gives the custom shader's <c>texture</c> params, as file paths (the others use the file's defaults).</summary>
+    public IReadOnlyDictionary<string, string> ShaderTextures => _shaderTextures ??= new();
+
+    /// <summary>Sets one of the custom shader's texture parameters to an image file, e.g. <c>SetShaderTexture("Mask", "Assets/Textures/mask.png")</c>.</summary>
+    public void SetShaderTexture(string name, string path) => (_shaderTextures ??= new())[name] = path;
+
+    public void ClearShaderTexture(string name) => _shaderTextures?.Remove(name);
+
     public Material Clone()
     {
         var copy = (Material)MemberwiseClone();
         copy._shaderParams = _shaderParams == null ? null : new Dictionary<string, Vector4>(_shaderParams);
+        copy._shaderTextures = _shaderTextures == null ? null : new Dictionary<string, string>(_shaderTextures);
         return copy;
     }
 }

@@ -8,6 +8,8 @@ in VS_OUT
     vec2 uv;
     vec4 color;
     vec4 lightSpacePos;
+    vec3 localPos;     // the model's own coordinates (for custom shaders)
+    vec3 objectPos;    // the object's origin in the world
 } fs;
 
 out vec4 FragColor;
@@ -210,6 +212,59 @@ float rangeAttenuation(float dist, float range)
     return x * x / (dist * dist + 1.0);
 }
 
+// ---- caustics: the light that waves focus onto everything under the water -----------------------------
+#define MAX_CAUSTIC_WATERS 4
+uniform int uCausticCount;
+uniform vec4 uCausticWater[MAX_CAUSTIC_WATERS];   // centre x, z, half width, half depth
+uniform vec4 uCausticInfo[MAX_CAUSTIC_WATERS];    // level, water time, strength, wave length
+
+vec2 cstHash(vec2 p)
+{
+    p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+    return fract(sin(p) * 43758.5453);
+}
+
+// Bright where two cells meet: one layer of drifting, wobbling cells (the network of light lines under waves).
+float cstLayer(vec2 q, float t)
+{
+    vec2 cell = floor(q), f = fract(q);
+    float d1 = 8.0, d2 = 8.0;
+    for (int j = -1; j <= 1; ++j)
+    for (int i = -1; i <= 1; ++i)
+    {
+        vec2 g = vec2(float(i), float(j));
+        vec2 o = 0.5 + 0.42 * sin(t * 0.9 + 6.2831 * cstHash(cell + g));
+        vec2 r = g + o - f;
+        float d = dot(r, r);
+        if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) { d2 = d; }
+    }
+    return exp(-(sqrt(d2) - sqrt(d1)) * 9.0);
+}
+
+// Extra sunlight on a point under one of the waters (0 when it is above or outside every water).
+float causticLight(vec3 p)
+{
+    float light = 0.0;
+    for (int i = 0; i < uCausticCount; ++i)
+    {
+        vec4 rect = uCausticWater[i], info = uCausticInfo[i];
+        float depth = info.x - p.y;
+        if (depth <= 0.0 || info.z <= 0.0) continue;
+        vec2 inside = rect.zw - abs(p.xz - rect.xy);
+        if (min(inside.x, inside.y) < 0.0) continue;
+
+        float t = info.y;
+        vec2 q = p.xz / (0.6 + info.w * 0.25);          // cells about the size of the small waves
+        float a = cstLayer(q + vec2(t * 0.11, -t * 0.07), t);
+        float b = cstLayer(q * 1.37 + vec2(-t * 0.09, t * 0.13) + 3.7, t * 1.2);
+        float pattern = pow(a * 0.65 + b * 0.65, 2.2);
+        // Strongest just under the surface (fading in over the first few cm), dimmer with depth, gone at the shore edge.
+        float fade = smoothstep(0.0, 0.12, depth) * exp(-depth * 0.35) * smoothstep(0.0, 0.5, min(inside.x, inside.y));
+        light += pattern * fade * info.z * 0.9;
+    }
+    return light;
+}
+
 //@USER_DECLARATIONS@
 
 void main()
@@ -248,6 +303,7 @@ void main()
     vec3 userEmission = vec3(0.0);
     float userShin = uShininess;
     float userSpec = 1.0;
+    float userAlpha = 1.0;   // below 0.5 a custom shader cuts the pixel away
     //@USER_CALL@
     specColor *= userSpec;
 
@@ -288,6 +344,7 @@ void main()
         float sunSpec = pow(1.0 - uCloudStorm, 2.0);   // an overcast sky leaves no sun glints
         float clouds = uCloudShadows ? cloudShadowFactor(fs.worldPos, l) : 1.0;
         result += (1.0 - shadow) * clouds * blinnPhong(n, v, l, uDirLight.color, albedo, specColor, shin, sunSpec);
+        result += (1.0 - shadow) * clouds * uDirLight.color * albedo * max(dot(n, l), 0.0) * causticLight(fs.worldPos);
     }
 
     for (int i = 0; i < uPointLightCount; ++i)

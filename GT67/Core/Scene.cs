@@ -328,6 +328,28 @@ public sealed class Scene : IDisposable
         _updateBuffer.AddRange(_roots);
         foreach (var obj in _updateBuffer) obj.Update(deltaTime);
         foreach (var obj in _updateBuffer) obj.LateUpdate(deltaTime); // cameras follow where things ended up
+
+        // Things that move (driven by a script or OnUpdate) splash into water and leave wakes behind them.
+        if (_waters.Count > 0 && Simulate)
+        {
+            _moverBuffer.Clear();
+            foreach (var obj in Traverse())
+                if (obj.Enabled && !obj.EditorOnly && (obj.Scripts.Count > 0 || obj.OnUpdate != null) && obj.Model.Parts.Count > 0)
+                    _moverBuffer.Add(obj);
+            foreach (var water in _waters) if (water.Enabled) water.TrackMovers(_moverBuffer, deltaTime);
+        }
+    }
+
+    private readonly List<GameObject> _moverBuffer = new();
+
+    /// <summary>The water whose surface covers (x, z) of <paramref name="position"/> (the highest one if several do), or null.</summary>
+    public Water? WaterAt(Vector3 position)
+    {
+        Water? found = null;
+        foreach (var water in _waters)
+            if (water.Enabled && water.Contains(position.X, position.Z) && (found == null || water.Level > found.Level))
+                found = water;
+        return found;
     }
 
     private static float MoveToward(float value, float target, float maxStep) =>

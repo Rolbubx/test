@@ -11,6 +11,11 @@ namespace GT67.Core;
 public sealed class Renderer : IDisposable
 {
     private static readonly string[] PointLightFields = BuildPointLightFields();
+    private static readonly string[] SplashFields = Enumerable.Range(0, Water.MaxSplashes).Select(i => $"uSplashes[{i}]").ToArray();
+    private static readonly string[] CausticFields = Enumerable.Range(0, MaxCausticWaters).Select(i => $"uCausticWater[{i}]").ToArray();
+
+    /// <summary>How many bodies of water can throw caustics at once (must match MAX_CAUSTIC_WATERS in lit.frag).</summary>
+    private const int MaxCausticWaters = 4;
 
     private readonly List<GameObject> _visible = new();
     private readonly List<GameObject> _opaque = new();
@@ -426,6 +431,8 @@ public sealed class Renderer : IDisposable
             shader.SetFloat("uPatchSize", ocean.PatchSize);
             shader.SetFloat("uOceanTexel", ocean.PatchSize / OceanWaves.N);
             shader.SetFloat("uWaveHeight", MathF.Max(water.WaveHeight, 1e-4f));
+            var splashes = water.Splashes;
+            for (int i = 0; i < splashes.Length; i++) shader.SetVector4(SplashFields[i], splashes[i]);
             shader.SetFloat("uRain", scene.RainAmount);
             SetFogUniforms(shader, scene);
 
@@ -560,12 +567,21 @@ public sealed class Renderer : IDisposable
             if (_frameCustom.Add(program))
                 SetFrameUniforms(_frameScene, _frameView, _frameProjection, _frameViewPos, _frameShadows, _frameClip, program);
             program.Use();
+            int textureUnit = FirstShaderTextureUnit;
             foreach (var param in custom.Params)
             {
-                var value = obj.Material.ShaderParams.TryGetValue(param.Name, out var own) ? own : param.Default;
+                if (param.Kind == ShaderParamKind.Texture)
+                {
+                    string path = obj.Material.ShaderTextures.TryGetValue(param.Name, out var own) ? own : param.DefaultTexture;
+                    ShaderTexture(path).Bind(TextureUnit.Texture0 + textureUnit);
+                    program.SetInt(param.Name, textureUnit++);
+                    continue;
+                }
+                var value = obj.Material.ShaderParams.TryGetValue(param.Name, out var set) ? set : param.Default;
                 switch (param.Kind)
                 {
                     case ShaderParamKind.Float: program.SetFloat(param.Name, value.X); break;
+                    case ShaderParamKind.Bool: program.SetBool(param.Name, value.X > 0.5f); break;
                     case ShaderParamKind.Vec2: program.SetVector2(param.Name, new Vector2(value.X, value.Y)); break;
                     case ShaderParamKind.Color: program.SetVector3(param.Name, MathUtil.ToLinear(new Color4(value.X, value.Y, value.Z, 1f))); break;
                     default: program.SetVector3(param.Name, new Vector3(value.X, value.Y, value.Z)); break;
@@ -581,6 +597,31 @@ public sealed class Renderer : IDisposable
         obj.Draw(camera, Lit, Wireframe);
         ObjectsDrawn++;
         DrawCalls += obj.Model.Parts.Count;
+    }
+
+    /// <summary>Texture units from here on hold the <c>texture</c> params of custom shaders (lower ones are the engine's).</summary>
+    private const int FirstShaderTextureUnit = 8;
+
+    private Texture? _white;
+    private readonly HashSet<string> _missingTextures = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The image of a shader's texture parameter (cached), or plain white if there is none or it cannot be read.</summary>
+    private Texture ShaderTexture(string path)
+    {
+        if (!string.IsNullOrWhiteSpace(path) && !_missingTextures.Contains(path))
+        {
+            try
+            {
+                if (File.Exists(ModelCache.ResolvePath(path))) return ModelCache.GetTexture(path);
+                Log.Warn($"Shader texture '{path}' not found; using white.");
+            }
+            catch (Exception e) when (e is IOException or InvalidOperationException)
+            {
+                Log.Warn($"Shader texture '{path}' could not be loaded: {e.Message}");
+            }
+            _missingTextures.Add(path);   // say it once, not every frame
+        }
+        return _white ??= ModelCache.Register("procedural:white", Texture.FromPixels(new byte[] { 255, 255, 255, 255 }, 1, 1, "white"));
     }
 
     /// <summary>Gizmos and other overlay objects: drawn last, ignoring depth so they are always visible.</summary>
@@ -676,6 +717,19 @@ public sealed class Renderer : IDisposable
         shader.SetFloat("uWetness", scene.Wetness);
         shader.SetFloat("uRainAmount", scene.RainAmount);
         shader.SetFloat("uWeatherTime", scene.WeatherTime);
+        shader.SetVector2("uScreenSize", new Vector2(_width, _height));
+
+        // Caustics: what lies under the water gets the dancing light the waves focus onto it.
+        int caustics = 0;
+        foreach (var water in scene.Waters)
+        {
+            if (!water.Enabled || caustics == MaxCausticWaters) continue;
+            var half = water.ReachHorizon ? new Vector2(1e7f) : water.Size * 0.5f;
+            shader.SetVector4(CausticFields[caustics], new Vector4(water.Position.X, water.Position.Z, half.X, half.Y));
+            shader.SetVector4($"uCausticInfo[{caustics}]", new Vector4(water.Level, water.Time, water.Caustics, water.WaveLength));
+            caustics++;
+        }
+        shader.SetInt("uCausticCount", caustics);
 
         // The sampler must point at a 3D-texture unit even when cloud shadows are off.
         shader.SetInt("uCloudShape", 5);

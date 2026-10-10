@@ -124,6 +124,8 @@ public static class Prefab
         if (data.ShaderParams != null)
             foreach (var (key, v) in data.ShaderParams)
                 obj.SetShaderParam(key, v.ElementAtOrDefault(0), v.ElementAtOrDefault(1), v.ElementAtOrDefault(2));
+        if (data.ShaderTextures != null)
+            foreach (var (key, path) in data.ShaderTextures) obj.SetShaderTexture(key, path);
 
         foreach (var scriptData in data.Scripts ?? new List<PrefabScript>())
         {
@@ -273,6 +275,7 @@ public sealed class PrefabObject
     public string? Texture { get; set; }
     public string? Shader { get; set; }
     public Dictionary<string, float[]>? ShaderParams { get; set; }
+    public Dictionary<string, string>? ShaderTextures { get; set; }
 
     public List<PrefabScript>? Scripts { get; set; }
     public List<PrefabObject>? Children { get; set; }

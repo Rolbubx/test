@@ -120,6 +120,9 @@ public sealed class PrefabLibrary
         }
         if (material.CustomShader.Length > 0) data.Shader = material.CustomShader;
         foreach (var (key, v) in material.ShaderParams) (data.ShaderParams ??= new())[key] = new[] { v.X, v.Y, v.Z };
+        foreach (var (key, path) in material.ShaderTextures)
+            if (AssetPath(path, "Textures") is { } shipped) (data.ShaderTextures ??= new())[key] = shipped;
+            else warnings.Add($"'{obj.Name}': shader texture '{path}' not found, so the prefab leaves it out.");
 
         foreach (var script in obj.Scripts)
         {

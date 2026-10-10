@@ -238,6 +238,9 @@ public sealed class GameObject
     /// <summary>Changes a parameter of this object's custom shader, e.g. <c>obj.SetShaderParam("Speed", 3f)</c> or a colour <c>("Tint", 1f, 0f, 0f)</c>.</summary>
     public void SetShaderParam(string name, float x, float y = 0f, float z = 0f) => Material.SetShaderParam(name, x, y, z);
 
+    /// <summary>Gives a <c>texture</c> parameter of this object's custom shader an image, e.g. <c>obj.SetShaderTexture("Mask", "Assets/Textures/mask.png")</c>.</summary>
+    public void SetShaderTexture(string name, string path) => Material.SetShaderTexture(name, path);
+
     public void SetTexture(string path) => Material.DiffuseMap = ModelCache.GetTexture(path);
 
     public void SetTexture(Texture texture) => Material.DiffuseMap = texture;

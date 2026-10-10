@@ -226,6 +226,47 @@ included (`Spin`, `PlayerController`, `GameCamera`). In the editor scripts are c
 same files normally. Scripts only run while the editor is playing (always in the game). A script that throws is
 disabled and the error is logged.
 
+## Custom shaders (the GT67 shader language)
+
+A `.shader` file in `Shaders/Custom` describes how a surface looks, and optionally how its vertices move; the engine
+builds a full lit shader from it, so lighting, shadows, fog, rain, puddles and caustics keep working. Pick it in the
+Inspector (Shader), or `obj.SetShader("Name")`. Files reload by themselves when saved; errors show in the Inspector
+with their line numbers. Shaders > New shader starts from a commented template.
+
+```glsl
+param color Tint = (1.0, 0.4, 0.1)
+param float Speed = 2.0 range 0 10              // a slider in the Inspector
+param bool Animate = true                       // a checkbox
+param vec2 Scroll = (0.1, 0.0)
+param texture Mask = "Assets/Textures/mask.png" // white when empty or missing
+
+vertex                                          // optional: move the vertices (world space)
+{
+    position += normal * sin(time * Speed + position.y * 4.0) * 0.03;
+}
+
+surface
+{
+    float n = fbm(position * 3.0, 4);
+    albedo = base * Tint * (0.8 + 0.4 * n);
+    emission = Tint * texture(Mask, uv + Scroll * time).r * (Animate ? 0.5 + 0.5 * sin(time * Speed) : 1.0);
+    normal = bump(normal, position, n, 0.3);
+    alpha = n + 0.2;                            // below 0.5 the pixel is cut away
+}
+```
+
+| | |
+|---|---|
+| **params** | `float` (with `range min max` for a slider), `color`, `vec2`, `vec3`, `bool`, `texture "path"`; per-object values in the Inspector, from code `obj.SetShaderParam("Speed", 3f)`, `obj.SetShaderTexture("Mask", path)` |
+| **surface reads** | `uv`, `position` (world), `localPosition` (model), `objectPosition`, `view`, `time`, `base` (colour and texture), `vertexColor`, `screenUV`, `sunDirection`, `sunColor`, `wetness` |
+| **surface sets** | `albedo`, `emission`, `shininess`, `specular`, `normal` (bumps), `alpha` (cut-out below 0.5) |
+| **vertex** | changes `position`, `normal`, `uv`; reads `localPosition`, `objectPosition`, `time`, `vertexColor` (shadows and reflections keep the unmoved shape) |
+| **library** | `noise(p)`, `fbm(p, octaves)`, `voronoi(p)` (distance, cell id, edge), `hash(p)`, `hash2(p)`, `remap`, `saturate`, `rotate(p, angle)`, `hsv(c)`, `rgbToHsv(c)`, `fresnel(normal, view, power)`, `stripes`, `checker`, `circle`, `triplanar(tex, position, normal, scale)`, `bump(normal, position, height, strength)` (surface only) |
+
+Examples in `Shaders/Custom`: **Pulse** (glow), **Dissolve** (noise + cut-out + burning edge), **Sway** (wind in grass,
+plants and flags, a vertex block), **Hologram** (fresnel rim, screen-space scanlines, a texture param). Compile ships the
+`.shader` files and their textures with the game.
+
 ## Prefabs
 
 A prefab is a reusable object saved to `Prefabs/<Name>.prefab` (JSON): the object and its children, with their mesh,
@@ -459,7 +500,17 @@ outer border of a rectangle of water fade out instead of ending in a hard straig
 - A Fresnel mix between the two (`FresnelF0`), a sun glint (`SpecularStrength`, `Shininess`) with pin-point
   `Sparkle`s on the ripples, sunlight through the wave tops (`CrestLight`), foam on crests and along
   shores or around submerged objects (`FoamAmount`, `ShoreFoamWidth`) and a soft shoreline (`EdgeSoftness`).
-- `GetHeightAt(x, z)` gives the wave height for floating objects (vertical motion only, so it is approximate).
+- **Splashes and wakes**: anything that moves (an object driven by a script or `OnUpdate`) splashes when it drops in
+  and leaves rings behind it as it moves through the water (`Interaction` sets the strength, 0 = none);
+  `water.Splash(position, strength)` or `Game.Splash(position)` makes rings from code.
+- **Caustics**: the light the waves focus onto everything under the water (lake bed, rocks, legs): a moving web of
+  bright lines, strongest just under the surface (`Caustics`, 0 = none). Lapping foam bands roll in towards the shore.
+- `GetHeightAt(x, z)` gives the wave height for floating objects (vertical motion only, so it is approximate);
+  `Game.WaterAt(position)` finds the water under a point.
+
+**Floating**: attach the `Buoyancy` script (Scripts/Buoyancy.cs): the object bobs on the real waves, tilts with their
+slope, drifts with the wind and settles; `Density` sets how it floats (0.2 high like a cork, 0.5 half under, above 1 it
+sinks), `Drag`, `Tilt` and `Drift` tune it. Out of the water it falls until it lands.
 
 Every setting is a property, so it can also be set by name: `ParameterAccess.TrySet(lake, "WaveHeight", 0.1f)`. The
 Water panel in the debug UI has live sliders. `Primitives.Heightmap(width, depth, subdivisions, height, color?)` builds

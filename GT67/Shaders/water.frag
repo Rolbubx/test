@@ -50,6 +50,34 @@ uniform sampler2D uOceanSlope;          // rg = slope of the height along x and 
 uniform float uPatchSize;
 uniform float uWaveHeight;
 
+// Splashes and wakes (Water.Splash): x, z of the centre, start time (water time), strength (0 = unused).
+#define MAX_SPLASHES 24
+uniform vec4 uSplashes[MAX_SPLASHES];
+
+// Slope of the rings spreading from every splash: a short train of crests behind a front moving out at 1.4 m/s,
+// fading with time and distance. foam: white water where something just hit the surface.
+vec2 splashRipples(vec2 p, out float foam)
+{
+    vec2 slope = vec2(0.0);
+    foam = 0.0;
+    for (int i = 0; i < MAX_SPLASHES; ++i)
+    {
+        vec4 s = uSplashes[i];
+        if (s.w <= 0.0) continue;
+        float age = uTime - s.z;
+        if (age < 0.0 || age > 4.0) continue;
+        vec2 d = p - s.xy;
+        float dist = length(d);
+        float x = dist - age * 1.4;                         // distance behind the front
+        if (x > 0.4 || x < -3.0) continue;
+        float train = exp(-(x + 0.7) * (x + 0.7) * 1.3);    // a few crests just behind the front
+        float amplitude = s.w * exp(-age * 0.8) / (1.0 + dist * 0.7);
+        slope += d / max(dist, 1e-3) * cos(x * 9.0) * train * amplitude * 0.9;
+        foam += s.w * (smoothstep(0.7, 0.0, dist) * exp(-age * 2.2) + train * exp(-age * 1.6) * 0.15);
+    }
+    return slope;
+}
+
 const float CASCADE_SCALE = 0.37;
 const mat2 CASCADE_TURN = mat2(0.825336, 0.564642, -0.564642, 0.825336);
 const float DETAIL_WEIGHT = 0.2;   // the short-wave copy is lower, as shorter waves are on real water
@@ -145,6 +173,8 @@ void main()
                 + transpose(turnA) * (r2.xy * 2.0 - 1.0) * 0.6
                 + transpose(turnB) * (r3.xy * 2.0 - 1.0) * 0.45 * nearDetail) * uRippleStrength * gust;
     slope += rainRipples(p, uTime, uRain) * 0.8;
+    float splashFoam;
+    slope += splashRipples(p, splashFoam);
     vec3 N = normalize(vec3(waveN.x + slope.x, waveN.y, waveN.z + slope.y));
 
     vec3 V = normalize(uViewPos - vWorldPos);
@@ -203,7 +233,11 @@ void main()
     float pattern2 = texture(uRippleMap, p * 1.1 - flow).a;
     float crest = breaking;   // where the FFT waves fold over: real whitecaps, not just "high points"
     float shore = 1.0 - smoothstep(0.0, max(uShoreFoam, 0.01), thickness);
-    float foam = (crest * 0.5 + shore * shore * 1.4) * uFoamAmount;
+    // Waves lapping at the shore: foam bands that roll in towards the water's edge (their crests move to thinner
+    // water as time goes on), uneven along the shore.
+    float shoreWaves = 1.0 - smoothstep(0.0, max(uShoreFoam, 0.01) * 1.6, thickness);
+    float bands = 0.5 + 0.5 * sin(thickness * 9.0 / max(uShoreFoam, 0.05) + uTime * 1.6 + pattern * 6.0);
+    float foam = (crest * 0.5 + shore * shore * 1.4 + shoreWaves * smoothstep(0.8, 0.97, bands) * 0.45 + splashFoam) * uFoamAmount;
     foam *= smoothstep(0.46, 0.54, pattern * 0.6 + pattern2 * 0.4);   // crisp foam edges, not a grey haze
     vec3 foamColor = (uAmbient + uSunColor * max(uSunDir.y, 0.0) * 0.8) * 0.9;
     color = mix(color, foamColor, clamp(foam, 0.0, 1.0));

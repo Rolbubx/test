@@ -198,6 +198,15 @@ public sealed class Game
         if (Scene.Sun is { } sun) sun.TimeOfDay = hours;
     }
 
+    /// <summary>The water under (x, z) of <paramref name="position"/>, or null: ask it for <c>GetHeightAt</c>, or <c>Splash</c> it.</summary>
+    public Water? WaterAt(Vector3 position) => Scene.WaterAt(position);
+
+    /// <summary>Sends rings across the water at <paramref name="position"/> (nothing happens if there is no water there).</summary>
+    public void Splash(Vector3 position, float strength = 1f)
+    {
+        if (Scene.WaterAt(position) is { } water) water.Splash(new Vector3(position.X, water.Level, position.Z), strength);
+    }
+
     /// <summary>Base fog density per metre (0 = clear air, 0.002 = light haze, 0.01 = thick fog).</summary>
     public float Fog
     {

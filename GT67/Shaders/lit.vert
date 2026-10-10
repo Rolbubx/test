@@ -20,17 +20,30 @@ out VS_OUT
     vec2 uv;
     vec4 color;
     vec4 lightSpacePos;
+    vec3 localPos;     // the model's own coordinates (for custom shaders)
+    vec3 objectPos;    // the object's origin in the world
 } vs;
+
+// Custom shaders (.shader files with a 'vertex' block) put their function here
+//@USER_VERTEX_DECLARATIONS@
 
 void main()
 {
-    vec4 world = uModel * vec4(aPosition, 1.0);
-    vs.worldPos = world.xyz;
-    vs.normal = normalize(uNormalMatrix * aNormal);
+    vec3 worldPos = (uModel * vec4(aPosition, 1.0)).xyz;
+    vec3 worldNormal = normalize(uNormalMatrix * aNormal);
+    vec2 uv = aUV * uUvScale;
+    vec3 objectPos = (uModel * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    //@USER_VERTEX_CALL@
+
+    vec4 world = vec4(worldPos, 1.0);
+    vs.worldPos = worldPos;
+    vs.normal = normalize(worldNormal);
     vs.tangent = normalize(mat3(uModel) * aTangent);
-    vs.uv = aUV * uUvScale;
+    vs.uv = uv;
     vs.color = aColor;
     vs.lightSpacePos = uLightSpace * world;
+    vs.localPos = aPosition;
+    vs.objectPos = objectPos;
     gl_ClipDistance[0] = dot(world, uClipPlane);
     gl_Position = uProjection * uView * world;
 }
