@@ -92,6 +92,26 @@ public sealed class AssetShipper
         }
     }
 
+    /// <summary>
+    /// Writes a new data file into <c>Assets/&lt;category&gt;</c> with <paramref name="write"/> (given the full path).
+    /// Returns the game path, or null if it could not be written.
+    /// </summary>
+    public string? WriteData(string category, string name, Action<string> write)
+    {
+        string file = UniqueName(category, name);
+        try
+        {
+            write(Path.Combine(_assetsRoot, category, file));
+            Copied++;
+            return $"{GamePrefix}/{category}/{file}";
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Warnings.Add($"Could not write '{category}/{file}': {e.Message}");
+            return null;
+        }
+    }
+
     private string UniqueName(string category, string name)
     {
         string stem = Path.GetFileNameWithoutExtension(name), extension = Path.GetExtension(name);

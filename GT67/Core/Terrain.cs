@@ -243,7 +243,49 @@ public sealed class Terrain : IDisposable
     public string ExportHeights() => Convert.ToBase64String(MemoryMarshal.AsBytes<float>(_heights));
 
     /// <summary>Vertex colours as base64 (RGBA, one byte per channel).</summary>
-    public string ExportColors()
+    public string ExportColors() => Convert.ToBase64String(ColorBytes());
+
+    /// <summary>Loads heights (and optionally colours) written by <see cref="ExportHeights"/> / <see cref="ExportColors"/>.</summary>
+    public void Import(string heightsBase64, string? colorsBase64 = null) =>
+        Import(Convert.FromBase64String(heightsBase64), colorsBase64 != null ? Convert.FromBase64String(colorsBase64) : null);
+
+    private const string DataMagic = "GT67TERR";
+    private const int DataVersion = 1;
+
+    /// <summary>
+    /// Writes heights and colours to a small binary file (header, float32 heights row by row, then RGBA bytes).
+    /// The Compile button ships one per terrain instead of pasting huge base64 strings into the generated code.
+    /// </summary>
+    public void SaveData(string file)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file))!);
+        using var writer = new BinaryWriter(File.Create(file));
+        writer.Write(DataMagic.ToCharArray());
+        writer.Write(DataVersion);
+        writer.Write(_stride);
+        writer.Write(MemoryMarshal.AsBytes<float>(_heights));
+        writer.Write(ColorBytes());
+    }
+
+    /// <summary>Loads a file written by <see cref="SaveData"/> (a relative path is relative to the executable).</summary>
+    public void LoadData(string path)
+    {
+        string full = ModelCache.ResolvePath(path);
+        using var reader = new BinaryReader(File.OpenRead(full));
+        if (new string(reader.ReadChars(DataMagic.Length)) != DataMagic)
+            throw new InvalidDataException($"'{path}' is not a terrain data file.");
+        int version = reader.ReadInt32();
+        if (version != DataVersion)
+            throw new InvalidDataException($"'{path}' has terrain data version {version}, expected {DataVersion}.");
+        int stride = reader.ReadInt32();
+        if (stride != _stride)
+            throw new InvalidDataException($"'{path}' holds a {stride - 1}-cell terrain but this one has {Resolution} cells per side.");
+        var heights = reader.ReadBytes(_heights.Length * sizeof(float));
+        var colors = reader.ReadBytes(_stride * _stride * 4);
+        Import(heights, colors);
+    }
+
+    private byte[] ColorBytes()
     {
         var bytes = new byte[_stride * _stride * 4];
         for (int i = 0; i < _stride * _stride; i++)
@@ -254,22 +296,20 @@ public sealed class Terrain : IDisposable
             bytes[i * 4 + 2] = (byte)(Math.Clamp(c.Z, 0f, 1f) * 255f + 0.5f);
             bytes[i * 4 + 3] = 255;
         }
-        return Convert.ToBase64String(bytes);
+        return bytes;
     }
 
-    /// <summary>Loads heights (and optionally colours) written by <see cref="ExportHeights"/> / <see cref="ExportColors"/>.</summary>
-    public void Import(string heightsBase64, string? colorsBase64 = null)
+    private void Import(byte[] heightBytes, byte[]? colorBytes)
     {
-        var heights = MemoryMarshal.Cast<byte, float>(Convert.FromBase64String(heightsBase64));
+        var heights = MemoryMarshal.Cast<byte, float>(heightBytes);
         if (heights.Length != _heights.Length)
             throw new ArgumentException($"Expected {_heights.Length} heights but got {heights.Length}.");
         heights.CopyTo(_heights);
 
-        if (colorsBase64 != null)
+        if (colorBytes != null)
         {
-            var bytes = Convert.FromBase64String(colorsBase64);
-            for (int i = 0; i < _stride * _stride && i * 4 + 2 < bytes.Length; i++)
-                Vertices[i].Color = new Vector4(bytes[i * 4] / 255f, bytes[i * 4 + 1] / 255f, bytes[i * 4 + 2] / 255f, 1f);
+            for (int i = 0; i < _stride * _stride && i * 4 + 2 < colorBytes.Length; i++)
+                Vertices[i].Color = new Vector4(colorBytes[i * 4] / 255f, colorBytes[i * 4 + 1] / 255f, colorBytes[i * 4 + 2] / 255f, 1f);
         }
         Apply();
         FinishEdit();
