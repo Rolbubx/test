@@ -297,6 +297,11 @@ public sealed class DebugUI : IDisposable
                 g.Slider("Shadow strength", clouds.ShadowStrength, 0f, 1f, v => clouds.ShadowStrength = v);
                 g.Slider("Wind speed", clouds.WindSpeed, 0f, 200f, v => clouds.WindSpeed = v, "0");
                 g.Slider("Edge detail", clouds.DetailStrength, 0f, 0.95f, v => clouds.DetailStrength = v);
+                g.Slider("Variation", clouds.Variation, 0f, 1f, v => clouds.Variation = v);
+                g.Slider("Evolution", clouds.Evolution, 0f, 10f, v => clouds.Evolution = v, "0.0");
+                g.Slider("Weather size (m)", clouds.WeatherSize, 2000f, 150000f, v => clouds.WeatherSize = v, "0");
+                int seed = clouds.Seed;
+                if (g.DragInt("Seed", ref seed)) clouds.Seed = seed;
                 g.Slider("Sun light", clouds.SunIntensity, 0f, 6f, v => clouds.SunIntensity = v);
                 g.Slider("Ambient light", clouds.AmbientIntensity, 0f, 4f, v => clouds.AmbientIntensity = v);
                 g.PopId();

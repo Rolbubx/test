@@ -4,6 +4,9 @@ in vec3 vWorldPos;
 in vec3 vNormal;
 in float vHeight;
 in float vSeed;
+in float vPatch;
+in float vGust;
+in float vFlower;
 
 out vec4 FragColor;
 
@@ -41,9 +44,20 @@ float grassShadow(vec3 p)
 
 void main()
 {
-    // Darker and greener at the root, lighter at the tip, each blade a slightly different shade.
+    // Darker and greener at the root, lighter at the tip, each blade a slightly different shade; drier, yellower
+    // patches and lush, deep green ones across the field.
     float shade = 0.82 + 0.36 * fract(vSeed * 37.13);
     vec3 albedo = mix(uGrassBase, uGrassTip, smoothstep(0.0, 1.0, vHeight)) * shade;
+    vec3 dry = albedo * vec3(1.25, 1.05, 0.55);
+    vec3 lush = albedo * vec3(0.8, 1.0, 0.85);
+    albedo = mix(dry, lush, smoothstep(0.25, 0.75, vPatch));
+
+    // Wildflowers: a coloured head at the top of the stem.
+    if (vFlower > 0.0 && vHeight > 0.8)
+    {
+        vec3 petals = vFlower < 1.5 ? vec3(0.95, 0.93, 0.85) : vFlower < 2.5 ? vec3(0.95, 0.78, 0.15) : vec3(0.55, 0.35, 0.85);
+        albedo = mix(albedo, petals, smoothstep(0.8, 0.9, vHeight));
+    }
     albedo *= 1.0 - 0.3 * uWetness;                     // wet grass is darker
     float occlusion = mix(0.35, 1.0, vHeight);          // the bottom of a lawn gets little light
 
@@ -61,6 +75,10 @@ void main()
         float glossy = pow(max(dot(n, normalize(l + v)), 0.0), 24.0) * 0.15 * vHeight;
         result += uDirLight.color * (1.0 - shadow) * (albedo * (diffuse * occlusion + through) + glossy);
     }
+
+    // Wind waves: where a gust presses the blades over, their shiny sides catch the sky and the field brightens in
+    // a band that rolls across it.
+    result += (uAmbient * 1.5 + (uHasDirLight ? uDirLight.color * 0.12 : vec3(0.0))) * vGust * vHeight * 0.35;
 
     if (uFogDensity > 0.0)
     {

@@ -173,6 +173,7 @@ public sealed partial class MapEditor
         g.Slider("Wind strength", grass.WindStrength, 0f, 1.5f, v => grass.WindStrength = v);
         g.Slider("Wind speed", grass.WindSpeed, 0f, 6f, v => grass.WindSpeed = v);
         g.Slider("Draw distance (m)", grass.MaxDistance, 10f, 300f, v => grass.MaxDistance = v, "0");
+        g.Slider("Flowers", grass.Flowers, 0f, 0.2f, v => grass.Flowers = v, "0.000");
         g.Slider("Player bend radius", grass.PlayerBendRadius, 0f, 3f, v => grass.PlayerBendRadius = v);
         if (g.IconTextButton(IconKind.Trash, "Remove all grass", 0f, ButtonStyle.Danger))
         {

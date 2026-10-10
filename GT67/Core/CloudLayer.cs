@@ -13,6 +13,9 @@ namespace GT67.Core;
 public sealed class CloudLayer : IDisposable
 {
     private Texture3D? _shape, _detail;
+    private Texture? _weather;
+    private int _builtSeed;
+    private float _time;
     private Vector3 _offset;
     private bool _disposed;
 
@@ -57,8 +60,22 @@ public sealed class CloudLayer : IDisposable
     /// <summary>How strongly the detail noise erodes the cloud edges (0 = smooth blobs).</summary>
     public float DetailStrength { get; set; } = 0.55f;
 
-    /// <summary>Changes the noise pattern (regenerates the textures).</summary>
+    /// <summary>Changes the noise pattern and the weather (regenerates the textures).</summary>
     public int Seed { get; set; } = 1337;
+
+    // ---- randomness ------------------------------------------------------------------------------
+
+    /// <summary>
+    /// How much the sky varies from place to place (0 = the same cover everywhere, 1 = clear patches next to thick,
+    /// towering clouds): random weather from a noise field that never repeats.
+    /// </summary>
+    public float Variation { get; set; } = 0.6f;
+
+    /// <summary>How fast the weather and the cloud shapes change by themselves (0 = they only drift with the wind).</summary>
+    public float Evolution { get; set; } = 1f;
+
+    /// <summary>Size in metres of the weather pattern (bigger = larger cloudy and clear regions).</summary>
+    public float WeatherSize { get; set; } = 40000f;
 
     // ---- motion ----------------------------------------------------------------------------------
 
@@ -101,6 +118,7 @@ public sealed class CloudLayer : IDisposable
     {
         var wind = WindDirection.LengthSquared > 1e-6f ? Vector2.Normalize(WindDirection) : Vector2.Zero;
         _offset += new Vector3(wind.X, 0f, wind.Y) * (WindSpeed * deltaTime);
+        _time += deltaTime;
     }
 
     /// <summary>Uploads the cloud parameters and binds the noise textures used by sky.frag.</summary>
@@ -115,6 +133,7 @@ public sealed class CloudLayer : IDisposable
         EnsureTextures();
         _shape!.Bind(TextureUnit.Texture5);
         _detail!.Bind(TextureUnit.Texture6);
+        SetWeatherUniforms(shader);
 
         var tint = MathUtil.ToLinear(Tint);
         var sunLight = sun is { Enabled: true }
@@ -157,6 +176,7 @@ public sealed class CloudLayer : IDisposable
 
         EnsureTextures();
         _shape!.Bind(TextureUnit.Texture5);
+        SetWeatherUniforms(shader);
         shader.SetFloat("uCloudMin", EffectiveAltitude);
         shader.SetFloat("uCloudStorm", Storm);
         shader.SetFloat("uCloudMax", EffectiveAltitude + MathF.Max(Thickness * (1f + 0.2f * Storm), 1f));
@@ -169,12 +189,32 @@ public sealed class CloudLayer : IDisposable
 
     private void EnsureTextures()
     {
-        if (_shape != null && _detail != null) return;
+        if (_shape != null && _detail != null && _weather != null && _builtSeed == Seed) return;
 
+        _shape?.Dispose();
+        _detail?.Dispose();
+        _weather?.Dispose();
         var watch = Stopwatch.StartNew();
         _shape = Texture3D.FromRgba(CloudNoise.Shape(64, Seed), 64);
         _detail = Texture3D.FromRgba(CloudNoise.Detail(32, Seed + 100), 32);
+        // Random weather: periodic, domain-warped Perlin noise (alpha channel), sampled at kilometre scale.
+        _weather = Texture.FromPixels(WaterNoise.NormalMap(128, Seed + 200), 128, 128, "cloud weather", srgb: false);
+        _builtSeed = Seed;
         Log.Info($"Cloud noise generated in {watch.ElapsedMilliseconds} ms.");
+    }
+
+    /// <summary>The texture unit of the weather map (one no other pass samples from).</summary>
+    private const int WeatherUnit = 14;
+
+    /// <summary>The random weather: where clouds gather and how tall they grow, slowly changing over time.</summary>
+    private void SetWeatherUniforms(Shader shader)
+    {
+        _weather!.Bind(TextureUnit.Texture0 + WeatherUnit);
+        shader.SetInt("uCloudWeather", WeatherUnit);
+        shader.SetFloat("uCloudTime", _time);
+        shader.SetFloat("uCloudEvolution", MathF.Max(Evolution, 0f));
+        shader.SetFloat("uCloudWeatherScale", 1f / MathF.Max(WeatherSize, 100f));
+        shader.SetFloat("uCloudVariation", Math.Clamp(Variation, 0f, 1f));
     }
 
     public void Dispose()
@@ -183,5 +223,6 @@ public sealed class CloudLayer : IDisposable
         _disposed = true;
         _shape?.Dispose();
         _detail?.Dispose();
+        _weather?.Dispose();
     }
 }

@@ -48,6 +48,9 @@ public sealed class GrassLayer : IDisposable
     /// <summary>Beyond this distance no grass is drawn; it thins out gradually before it.</summary>
     public float MaxDistance { get; set; } = 70f;
 
+    /// <summary>Share of blades that are wildflowers (white, yellow, purple), 0..1 (0 = none).</summary>
+    public float Flowers { get; set; } = 0.015f;
+
     /// <summary>Bend away from objects tagged "Player" when they walk through (radius in metres, 0 = off).</summary>
     public float PlayerBendRadius { get; set; } = 0.8f;
 

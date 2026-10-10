@@ -108,25 +108,46 @@ float interleavedGradientNoise(vec2 p)
 }
 
 // 0..1 cloud density at a world position (metres); lod picks the noise mip level
+// ---- random cloud weather (CloudLayer.Variation, Evolution, WeatherSize, Seed) -----------------------
+uniform sampler2D uCloudWeather;   // periodic noise (alpha), generated from the cloud seed
+uniform float uCloudTime;          // seconds
+uniform float uCloudEvolution;     // how fast the weather and the shapes change by themselves
+uniform float uCloudWeatherScale;  // 1 / metres of the weather pattern
+uniform float uCloudVariation;     // 0..1: how much cover and height change from place to place
+
+// 0..1: how much cloud the weather wants here. Two drifting copies of the noise: it never repeats and slowly changes.
+float cloudWeather(vec2 xz)
+{
+    vec2 uv = xz * uCloudWeatherScale;
+    float t = uCloudTime * uCloudEvolution * 0.0004;
+    float a = texture(uCloudWeather, uv + vec2(t, t * 0.6)).a;
+    float b = texture(uCloudWeather, uv * 1.73 + vec2(-t * 0.8, t * 1.1) + 0.37).a;
+    return clamp(a * 0.65 + b * 0.35, 0.0, 1.0);
+}
+
+// The cloud shapes billow and change: the 3D noise is read at a slowly moving height.
+vec3 cloudEvolve() { return vec3(0.0, uCloudTime * uCloudEvolution * 0.0015, 0.0); }
+
 float cloudDensity(vec3 p, float lod, bool detail)
 {
     float h = (p.y - uCloudMin) / (uCloudMax - uCloudMin);
     if (h <= 0.0 || h >= 1.0) return 0.0;
 
     // Rounded cumulus profile: flat-ish base, billowing top
-    float profile = smoothstep(0.0, 0.12, h) * smoothstep(1.0, 0.55, h);
+    // Random weather: how much cloud here, and how tall it grows (towers where it is thick, flat where thin).
+    float weather = cloudWeather(p.xz + uCloudOffset.xz);
+    float top = mix(1.0, 0.35 + 0.65 * weather, uCloudVariation);
+    float profile = smoothstep(0.0, 0.12, h) * (1.0 - smoothstep(top * 0.55, top, h));
     float overcast = uCloudStorm * profile * 0.75;   // storm: an unbroken sheet
 
     vec3 q = (p + uCloudOffset) * uCloudShapeScale;
-    vec4 n = textureLod(uCloudShape, q, lod);
+    vec4 n = textureLod(uCloudShape, q + cloudEvolve(), lod);
     float worleyFbm = n.g * 0.625 + n.b * 0.25 + n.a * 0.125;
     // The Perlin-Worley channel only spans ~0.35..1, so stretch it to 0..1 and carve it with the Worley fBm.
     float baseShape = clamp((n.r - 0.35) / 0.65, 0.0, 1.0);
     float shape = baseShape * (0.4 + 0.6 * clamp(worleyFbm / 0.8, 0.0, 1.0));
 
-    // Large-scale weather: patches of more and less cloud
-    float weather = textureLod(uCloudShape, vec3(q.x * 0.1, 0.31, q.z * 0.1), 3.0).g;
-    float coverage = clamp(uCloudCoverage + (weather - 0.45) * 0.7, 0.0, 1.0);
+    float coverage = clamp(uCloudCoverage + (weather - 0.5) * 1.4 * uCloudVariation, 0.0, 1.0);
     if (coverage <= 0.001) return overcast * uCloudDensity;
 
     float density = shape * profile;
@@ -135,7 +156,7 @@ float cloudDensity(vec3 p, float lod, bool detail)
 
     if (detail)
     {
-        vec3 dn = textureLod(uCloudDetail, q * uCloudDetailTiling, max(lod - 2.0, 0.0)).rgb;
+        vec3 dn = textureLod(uCloudDetail, (q + cloudEvolve() * 3.0) * uCloudDetailTiling, max(lod - 2.0, 0.0)).rgb;
         float detailFbm = dn.r * 0.625 + dn.g * 0.25 + dn.b * 0.125;
         // Wispy at the top, billowy at the bottom
         float erosion = mix(detailFbm, 1.0 - detailFbm, clamp(h * 4.0, 0.0, 1.0)) * uCloudDetailStrength;

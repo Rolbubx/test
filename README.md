@@ -327,10 +327,12 @@ scene.Grass.Scatter(new Vector2(-20, -20), new Vector2(20, 20), density: 40f,
 ```
 
 Thousands of blades drawn with GPU instancing (one draw call per 16 m chunk on screen; the demo has about 62,000).
-Every blade has its own height, width, facing, lean and shade; they sway in a gusty wind, bend away from objects tagged
+Every blade has its own height, width, facing, lean and shade, and the field has noise patches (lush, tall and dark
+in places, shorter and drier in others) and a few wildflowers. Blades turn partly towards the camera so they never
+vanish edge-on, wind gusts roll across the field as visible waves of lighter grass, bend away from objects tagged
 `Player` walking through them, get the sun's shadows, glow when the sun is behind them, darken when wet, and thin out
 gradually towards `MaxDistance`. Settings: `Height`, `Width`, `BaseColor`, `TipColor`, `WindStrength`, `WindSpeed`,
-`WindDirection`, `MaxDistance`, `PlayerBendRadius`. Brushes from code: `Paint(center, radius, density, ground, random)`,
+`WindDirection`, `MaxDistance`, `PlayerBendRadius`, `Flowers` (share of blades that are flowers, 0.015). Brushes from code: `Paint(center, radius, density, ground, random)`,
 `Erase(center, radius, fraction, random)`, `Reground(...)`.
 
 **In the editor**: Terrain tab > Grass > **Paint grass** (or the Grass brush of the Terrain tool): left-drag on any ground,
@@ -466,6 +468,9 @@ scene.Skybox = new Skybox(new PhysicalSky { Clouds = new CloudLayer { Coverage =
 atmospheric haze with distance and wind drift. The sun's colour and the time of day tint the clouds automatically.
 
 - Shape: `Coverage`, `Density`, `Altitude` and `Thickness` (metres), `ShapeSize`, `DetailTiling`, `DetailStrength`, `Seed`.
+- Randomness: a seeded weather noise map makes some areas clear, others overcast, with small puffs next to tall towers
+  (`Variation`, 0 = uniform, 0.6 default; `WeatherSize`, metres per weather pattern). The shapes also slowly boil and
+  change over time (`Evolution`, 0 = frozen). Change `Seed` for a different sky.
 - Motion: `WindDirection`, `WindSpeed`. Light: `SunIntensity`, `AmbientIntensity`, `Anisotropy`, `Tint`, `Haze`.
 - Quality: `Steps` (default 32), `LightSteps` (5), `MaxDistance`. `Enabled = false` hides them.
 - Cost: about 6 ms per frame on a GTX 1060 with the sky filling the whole screen, less when objects cover it.

@@ -494,6 +494,7 @@ public sealed class Renderer : IDisposable
         shader.SetVector2("uWind", wind * grass.WindStrength);
         shader.SetFloat("uWindSpeed", grass.WindSpeed);
         shader.SetFloat("uMaxDistance", grass.MaxDistance);
+        shader.SetFloat("uFlowers", Math.Clamp(grass.Flowers, 0f, 1f));
         shader.SetVector3("uGrassBase", MathUtil.ToLinear(grass.BaseColor));
         shader.SetVector3("uGrassTip", MathUtil.ToLinear(grass.TipColor));
 
@@ -616,6 +617,7 @@ public sealed class Renderer : IDisposable
             {
                 if (param.Kind == ShaderParamKind.Texture)
                 {
+                    if (textureUnit > LastShaderTextureUnit) continue;   // the units above belong to the engine
                     string path = obj.Material.ShaderTextures.TryGetValue(param.Name, out var own) ? own : param.DefaultTexture;
                     ShaderTexture(path).Bind(TextureUnit.Texture0 + textureUnit);
                     program.SetInt(param.Name, textureUnit++);
@@ -645,6 +647,9 @@ public sealed class Renderer : IDisposable
 
     /// <summary>Texture units from here on hold the <c>texture</c> params of custom shaders (lower ones are the engine's).</summary>
     private const int FirstShaderTextureUnit = 8;
+
+    /// <summary>The last unit custom shaders may use (14 holds the cloud weather, 15 is a scratch unit for uploads): 6 textures.</summary>
+    private const int LastShaderTextureUnit = 13;
 
     private Texture? _white;
     private readonly HashSet<string> _missingTextures = new(StringComparer.OrdinalIgnoreCase);
