@@ -11,7 +11,8 @@ dotnet run --project GT67
 dotnet run --project GT67 -- --frames 300     # closes itself after 300 frames (smoke test)
 dotnet run --project GT67 -- --game           # game mode instead of the editor (see IsEditor in Program.cs)
 dotnet run --project GT67 -c Editor           # build configuration "Editor": opens the editor (debug build)
-dotnet run --project GT67 -c Game             # build configuration "Game": runs the game (optimised)
+dotnet run --project GT67 -c Game             # build configuration "Game": runs the compiled game (optimised, no editor)
+dotnet publish GT67 -c Game -r win-x64 -o Build   # the shippable game: Native AOT exe (needs the VS "Desktop development with C++" tools)
 dotnet run --project GT67 -- --debug          # turns on the temporary DebugFlag.On (game mode)
 ```
 
