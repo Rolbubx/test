@@ -52,8 +52,12 @@ public static class ExternalEditor
         }
 
         if (vsCode && Directory.Exists(projectRoot)) info.ArgumentList.Add(projectRoot); // opens the whole project once
-        if (vsCode) info.ArgumentList.Add("-g");
-        info.ArgumentList.Add(file);
+        // "-g" means "go to this file"; given a folder (the "Open project" button) VS Code would try to open the folder
+        // as a file and say it does not exist, so a folder is passed on its own.
+        bool isFolder = Directory.Exists(file);
+        if (vsCode && !isFolder) info.ArgumentList.Add("-g");
+        if (!(vsCode && isFolder && string.Equals(Path.GetFullPath(file), Path.GetFullPath(projectRoot), StringComparison.OrdinalIgnoreCase)))
+            info.ArgumentList.Add(file);
         info.UseShellExecute = false;
         Process.Start(info)?.Dispose();
     }
