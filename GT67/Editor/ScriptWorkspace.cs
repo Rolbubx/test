@@ -104,7 +104,7 @@ public sealed class ScriptWorkspace : IDisposable
         {
             try
             {
-                if (System.Text.RegularExpressions.Regex.IsMatch(File.ReadAllText(file), $@"class\s+{System.Text.RegularExpressions.Regex.Escape(typeName)}"))
+                if (System.Text.RegularExpressions.Regex.IsMatch(File.ReadAllText(file), $@"\bclass\s+{System.Text.RegularExpressions.Regex.Escape(typeName)}\b"))
                     return file;
             }
             catch (IOException)
