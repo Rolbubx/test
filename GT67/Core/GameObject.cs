@@ -77,6 +77,7 @@ public sealed class GameObject
     }
 
     /// <summary>Attaches a script created from its type (used by the editor and generated maps).</summary>
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "GT67 is a trimmer root (GT67.csproj), so every script keeps its constructor.")]
     public Script AddScript(Type type)
     {
         if (!typeof(Script).IsAssignableFrom(type) || type.IsAbstract)

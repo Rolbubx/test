@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using GT67.Utils;
 using OpenTK.Mathematics;
@@ -19,7 +20,8 @@ public static class Prefab
 
     private static readonly Dictionary<string, (DateTime stamp, PrefabData data)> Cache = new(StringComparer.OrdinalIgnoreCase);
 
-    internal static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    // Source-generated (PrefabJson below), so prefabs also load in the Native AOT build of the game.
+    internal static JsonSerializerOptions Json => PrefabJson.Default.Options;
 
     /// <summary>
     /// Folders searched for prefab files, first match wins. By default the Prefabs folder next to the executable; the
@@ -61,7 +63,7 @@ public static class Prefab
         {
             var stamp = File.GetLastWriteTimeUtc(file);
             if (Cache.TryGetValue(file, out var cached) && cached.stamp == stamp) return cached.data;
-            var data = JsonSerializer.Deserialize<PrefabData>(File.ReadAllText(file), Json);
+            var data = JsonSerializer.Deserialize(File.ReadAllText(file), PrefabJson.Default.PrefabData);
             if (data?.Root == null) throw new JsonException("no root object");
             Cache[file] = (stamp, data);
             return data;
@@ -229,6 +231,7 @@ public static class Prefab
     private static Vector3 ToVector(float[]? values, Vector3 fallback) =>
         values is { Length: 3 } ? new Vector3(values[0], values[1], values[2]) : fallback;
 
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "GT67 is a trimmer root (GT67.csproj), so every script class is kept.")]
     private static Type? DefaultScriptType(string fullName)
     {
         // The last loaded assembly wins, so newer copies of a script are preferred.
@@ -287,3 +290,17 @@ public sealed class PrefabScript
     public string? Type { get; set; }
     public Dictionary<string, object?>? Values { get; set; }
 }
+
+/// <summary>
+/// The JSON contract of .prefab files, generated at build time (reflection-based JSON is off in the Native AOT game).
+/// Lists every value type <see cref="Prefab.ToJson"/> can put into a settings dictionary.
+/// </summary>
+[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSerializable(typeof(PrefabData))]
+[JsonSerializable(typeof(float))]
+[JsonSerializable(typeof(double))]
+[JsonSerializable(typeof(int))]
+[JsonSerializable(typeof(bool))]
+[JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(float[]))]
+internal sealed partial class PrefabJson : JsonSerializerContext { }

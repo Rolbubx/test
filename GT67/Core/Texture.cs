@@ -14,6 +14,9 @@ public sealed class Texture : IDisposable
     public int Height { get; }
     public string Path { get; }
 
+    /// <summary>Where this texture came from, as C# code that recreates it (e.g. "Texture.Checkerboard(...)"); null if unknown.</summary>
+    public string? Origin { get; set; }
+
     private Texture(int handle, int width, int height, string path)
     {
         Handle = handle;
@@ -76,7 +79,9 @@ public sealed class Texture : IDisposable
             pixels[i + 2] = c.b;
             pixels[i + 3] = 255;
         }
-        return FromPixels(pixels, size, size, "<checkerboard>");
+        var texture = FromPixels(pixels, size, size, "<checkerboard>");
+        texture.Origin = $"Texture.Checkerboard({size}, {cells}, ({a.r}, {a.g}, {a.b}), ({b.r}, {b.g}, {b.b}))";
+        return texture;
     }
 
     public void SetWrap(TextureWrapMode wrap)

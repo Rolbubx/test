@@ -30,6 +30,10 @@ bool noVsync = false, dry = false;
 var offList = new List<string>();
 string? playSound = null;
 bool noSky = false, noShadow = false, noReflect = false, generated = false, exportDemo = false;
+#if GAME
+generated = true;   // the shipped game is the one the editor compiled (the demo scene is only a fallback)
+_ = exportDemo;     // "--export-demo" needs the editor, which the Game build leaves out
+#endif
 var argv = Environment.GetCommandLineArgs();
 for (int i = 1; i < argv.Length; i++)
 {
@@ -54,6 +58,7 @@ window.Initialize = w =>
 {
     SetupPostProcessing(w, IsEditor);
 
+#if !GAME
     if (exportDemo)
     {
         BuildDemoScene(w);
@@ -64,6 +69,7 @@ window.Initialize = w =>
         w.Close();
         return;
     }
+#endif
 
     // "--generated": the game the editor wrote with Compile (Generated/GeneratedGame) instead of the demo scene.
     if (generated && GameGenerator.IsGenerated)

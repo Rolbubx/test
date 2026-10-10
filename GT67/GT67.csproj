@@ -24,11 +24,24 @@
         <DebugType>portable</DebugType>
     </PropertyGroup>
 
+    <!-- Game: the shipped game, without the editor. "dotnet publish -c Game -r win-x64" makes a Native AOT build:
+         one native exe (no .NET install needed, fast start) plus the native libraries, Shaders, Prefabs and Assets. -->
     <PropertyGroup Condition="'$(Configuration)' == 'Game'">
         <DefineConstants>$(DefineConstants);TRACE;GAME</DefineConstants>
         <Optimize>true</Optimize>
-        <DebugType>portable</DebugType>
+        <DebugType>none</DebugType>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <PublishAot>true</PublishAot>
+        <OptimizationPreference>Speed</OptimizationPreference>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+        <GameExcludedAssets>Assets\Models\**</GameExcludedAssets>
     </PropertyGroup>
+
+    <ItemGroup Condition="'$(Configuration)' == 'Game'">
+        <!-- Scripts, effects and settings are found by reflection (ParameterAccess, prefabs): keep all of GT67's own code -->
+        <TrimmerRootAssembly Include="GT67" />
+    </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="NLayer" Version="3.0.0" />
@@ -37,15 +50,22 @@
         <PackageReference Include="Silk.NET.Assimp" Version="2.22.0" />
         <PackageReference Include="StbImageSharp" Version="2.30.15" />
         <!-- Compiles the scripts in Scripts/*.cs while the editor runs (not used by the game itself) -->
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" Condition="'$(Configuration)' != 'Game'" />
         <!-- 2D vector graphics and real font rendering for the UI (the Linux native part is a separate package) -->
         <PackageReference Include="SkiaSharp" Version="3.119.4" />
         <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
     </ItemGroup>
 
+    <!-- The game leaves the editor and the live script compiler out (the scripts in Scripts/ are compiled into it) -->
+    <ItemGroup Condition="'$(Configuration)' == 'Game'">
+        <Compile Remove="Editor\**" />
+        <Compile Remove="Scripting\ScriptCompiler*.cs" />
+    </ItemGroup>
+
     <ItemGroup>
         <None Include="Shaders\**\*.*" CopyToOutputDirectory="PreserveNewest" LinkBase="Shaders" />
-        <None Include="Assets\**\*.*" CopyToOutputDirectory="PreserveNewest" LinkBase="Assets" />
+        <!-- The game loads its models from Assets/Game; Assets/Models is the editor's import folder, so it stays out of the game -->
+        <None Include="Assets\**\*.*" Exclude="$(GameExcludedAssets)" CopyToOutputDirectory="PreserveNewest" LinkBase="Assets" />
         <!-- Prefabs saved in the editor (Prefabs/*.prefab); the game spawns them with Prefab.Spawn / Game.SpawnPrefab -->
         <None Include="Prefabs\**\*.*" CopyToOutputDirectory="PreserveNewest" LinkBase="Prefabs" />
         <!-- Models, textures, sounds and UI images the editor shipped with the generated game (Generated/GeneratedGame/Assets) -->

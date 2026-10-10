@@ -119,7 +119,9 @@ public sealed class Window : GameWindow
         Viewport = new UiRect(0f, 0f, ClientSize.X, ClientSize.Y);
 
         Initialize?.Invoke(this);
+#if !GAME
         if (IsEditor) Editor = new MapEditor(this);
+#endif
     }
 
     protected override void OnUnload()

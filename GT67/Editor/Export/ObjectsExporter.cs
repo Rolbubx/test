@@ -79,6 +79,7 @@ public static class ObjectsExporter
         {
             string? path = context.Assets.ShipTexture(texture);
             if (path != null) w.Line($"{v}.SetTexture({Str(path)});");
+            else if (texture.Origin != null) w.Line($"{v}.SetTexture({texture.Origin});");
             else context.Warnings.Add($"'{obj.Name}': the texture is not a file, so it was left out.");
         }
 
