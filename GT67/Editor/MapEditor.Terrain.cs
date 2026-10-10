@@ -7,7 +7,10 @@ namespace GT67.Editor;
 
 public sealed partial class MapEditor
 {
-    private enum BrushKind { Raise, Lower, Smooth, Flatten, Noise, Paint }
+    private enum BrushKind { Raise, Lower, Smooth, Flatten, Noise, Paint, Grass }
+
+    private float _grassDensity = 40f;
+    private readonly Random _grassRandom = new();
 
     private static readonly (string name, Color4 color)[] PaintSwatches =
     {
@@ -27,6 +30,11 @@ public sealed partial class MapEditor
 
     private void HandleTerrain(float deltaTime, bool overUi, bool leftDown)
     {
+        if (_brush == BrushKind.Grass)
+        {
+            HandleGrass(deltaTime, overUi, leftDown);
+            return;
+        }
         var terrain = ActiveTerrain();
         if (terrain == null)
         {
@@ -77,11 +85,54 @@ public sealed partial class MapEditor
                     break;
             }
             terrain.Apply();
+            // Grass stays on the ground while it is sculpted.
+            if (_brush != BrushKind.Paint) Scene.Grass?.Reground(point.Xz, _brushRadius, (x, z) => terrain.GetHeight(x, z));
         }
         else if (_stroking)
         {
             EndStroke();
         }
+    }
+
+    /// <summary>
+    /// The Grass brush: paints blades up to the chosen density on whatever ground is under the mouse (terrain or any
+    /// solid object); Shift erases. No grass grows under water.
+    /// </summary>
+    private void HandleGrass(float deltaTime, bool overUi, bool leftDown)
+    {
+        var ray = _window.GetMouseRay();
+        Vector3 point;
+        if (overUi) { _ring.Hide(); return; }
+        if (ActiveTerrain() is { } terrain && terrain.Raycast(ray, out var onTerrain)) point = onTerrain;
+        else if (Scene.Raycast(ray.Origin, ray.Direction, out float distance) != null) point = ray.GetPoint(distance);
+        else { _ring.Hide(); return; }
+
+        _ring.Show((x, z) => GrassGround(x, z) ?? point.Y, point, _brushRadius);
+        if (!leftDown) return;
+
+        var grass = Scene.Grass ??= new GrassLayer();
+        bool erase = _window.KeyboardState.IsKeyDown(Keys.LeftShift) || _window.KeyboardState.IsKeyDown(Keys.RightShift);
+        if (erase) grass.Erase(point.Xz, _brushRadius, Math.Clamp(deltaTime * 4f, 0f, 1f), _grassRandom);
+        else
+        {
+            // On a terrain the height lookup is cheap; on other objects every blade needs a ray, so fewer per frame.
+            int perFrame = TerrainUnder(point) != null ? 600 : 80;
+            grass.Paint(point.Xz, _brushRadius, _grassDensity, GrassGround, _grassRandom, perFrame);
+        }
+    }
+
+    /// <summary>The ground height where a blade could grow at (x, z), or null (nothing there, or under water).</summary>
+    private float? GrassGround(float x, float z)
+    {
+        float? ground = null;
+        if (TerrainUnder(new Vector3(x, 0f, z)) is { } terrain) ground = terrain.GetHeight(x, z);
+        else
+        {
+            var from = new Vector3(x, 500f, z);
+            if (Scene.Raycast(from, -Vector3.UnitY, out float distance) != null) ground = from.Y - distance;
+        }
+        if (ground is { } y && Scene.WaterAt(new Vector3(x, y, z)) is { } water && water.Level > y - 0.02f) return null;
+        return ground;
     }
 
     private void EndStroke()
@@ -95,6 +146,40 @@ public sealed partial class MapEditor
         Scene.Terrains.FirstOrDefault(t => t.Object == Selected) ?? Scene.Terrains.FirstOrDefault();
 
     // ---- panel -----------------------------------------------------------------------------------
+
+    /// <summary>Grass: the brush (works on any ground, terrain or not), how the blades look and move.</summary>
+    private void DrawGrassSection()
+    {
+        var g = G;
+        g.SeparatorText("Grass");
+        bool painting = Tool == EditorTool.Terrain && _brush == BrushKind.Grass;
+        if (g.IconTextButton(IconKind.Terrain, painting ? "Painting grass" : "Paint grass", 0f, painting ? ButtonStyle.Primary : ButtonStyle.Normal))
+        {
+            Tool = EditorTool.Terrain;
+            _brush = BrushKind.Grass;
+        }
+        g.TextWrapped("Left-drag on any ground to grow grass up to the density below; hold Shift to remove it. " +
+                      "It never grows under water, and follows the terrain when you sculpt.", dim: true);
+        g.Slider("Brush radius (m)", _brushRadius, 0.5f, 40f, v => _brushRadius = v, "0.0");
+        g.Slider("Density (blades/m²)", _grassDensity, 2f, 150f, v => _grassDensity = v, "0");
+
+        if (Scene.Grass is not { } grass) return;
+        g.TextDim($"{grass.Count:N0} blades");
+        g.Check("Visible", grass.Enabled, v => grass.Enabled = v);
+        g.Slider("Height (m)", grass.Height, 0.05f, 2f, v => grass.Height = v);
+        g.Slider("Blade width (m)", grass.Width, 0.01f, 0.25f, v => grass.Width = v, "0.000");
+        g.Rgb("Root colour", grass.BaseColor, v => grass.BaseColor = v);
+        g.Rgb("Tip colour", grass.TipColor, v => grass.TipColor = v);
+        g.Slider("Wind strength", grass.WindStrength, 0f, 1.5f, v => grass.WindStrength = v);
+        g.Slider("Wind speed", grass.WindSpeed, 0f, 6f, v => grass.WindSpeed = v);
+        g.Slider("Draw distance (m)", grass.MaxDistance, 10f, 300f, v => grass.MaxDistance = v, "0");
+        g.Slider("Player bend radius", grass.PlayerBendRadius, 0f, 3f, v => grass.PlayerBendRadius = v);
+        if (g.IconTextButton(IconKind.Trash, "Remove all grass", 0f, ButtonStyle.Danger))
+        {
+            grass.Clear();
+            Say("Removed all the grass.");
+        }
+    }
 
     private void DrawTerrainPanel()
     {
@@ -137,6 +222,10 @@ public sealed partial class MapEditor
                 g.NewLine();
                 g.Rgb("Colour", _paintColor, v => _paintColor = v);
             }
+            else if (_brush == BrushKind.Grass)
+            {
+                g.TextWrapped("Grass settings are below.", dim: true);
+            }
             else
             {
                 g.Slider("Strength", _brushStrength, 0.2f, 30f, v => _brushStrength = v, "0.0");
@@ -150,6 +239,8 @@ public sealed partial class MapEditor
                 terrain.FinishEdit();
             });
         }
+
+        DrawGrassSection();
 
         g.SeparatorText("New terrain");
         g.Drag("Size (m)", _newTerrainSize, 1f, v => _newTerrainSize = v, 10f, 1000f);

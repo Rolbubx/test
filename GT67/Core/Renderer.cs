@@ -56,6 +56,7 @@ public sealed class Renderer : IDisposable
     public Shader Depth { get; }
     public Shader PostShader { get; }
     public Shader WaterShader { get; }
+    public Shader GrassShader { get; }
     public PostProcess Post { get; }
     /// <summary>Quality level, 0 (best) to 3 (fastest). Lowers the fog, puddle mirrors, cloud march and rain layers.</summary>
     public int Quality { get; set; }
@@ -133,6 +134,7 @@ public sealed class Renderer : IDisposable
         Depth = Load(shaderDirectory, "depth");
         PostShader = Load(shaderDirectory, "post");
         WaterShader = Load(shaderDirectory, "water");
+        GrassShader = Load(shaderDirectory, "grass");
         _rippleMap = Texture.FromPixels(WaterNoise.NormalMap(512, 7), 512, 512, "water ripples", srgb: false);
         _rippleMap.SetMaxAnisotropy(16f);   // ripples stay sharp at grazing angles instead of blurring into mush
         Shadow = new ShadowMap(4096);
@@ -156,6 +158,7 @@ public sealed class Renderer : IDisposable
             yield return Depth;
             yield return PostShader;
             yield return WaterShader;
+            yield return GrassShader;
             foreach (var shader in Post.EffectShaders) yield return shader;
         }
     }
@@ -275,6 +278,9 @@ public sealed class Renderer : IDisposable
             _occlusion.IssueQueries(_opaque, Depth, camera.ViewMatrix * camera.ProjectionMatrix, camera.Position, camera.Near);
             Lit.Use();
         }
+
+        // Grass after the occlusion tests (blades must not hide objects from them), before the sky.
+        if (scene.Grass is { Enabled: true } grass) DrawGrass(grass, scene, camera, shadows);
 
         // After opaque and before transparent objects, so blended surfaces show the sky behind them.
         if (SkyboxEnabled && scene.Skybox != null)
@@ -473,6 +479,44 @@ public sealed class Renderer : IDisposable
         SetPolygonMode(Wireframe);
         Lit.Use(); // later passes (transparent objects, highlight) set uniforms on and draw with the lit shader
     }
+
+    private readonly List<GameObject> _benders = new();
+
+    /// <summary>Draws the grass with the same sun, shadows, ambient light and fog as everything else.</summary>
+    private void DrawGrass(GrassLayer grass, Scene scene, Camera camera, bool shadows)
+    {
+        var shader = GrassShader;
+        shader.Use();
+        SetFrameUniforms(scene, camera.ViewMatrix, camera.ProjectionMatrix, camera.Position, shadows, new Vector4(0f, 0f, 0f, 1f), shader);
+        shader.SetFloat("uGrassHeight", grass.Height);
+        shader.SetFloat("uGrassWidth", grass.Width);
+        var wind = grass.WindDirection.LengthSquared > 1e-6f ? grass.WindDirection.Normalized() : Vector2.UnitX;
+        shader.SetVector2("uWind", wind * grass.WindStrength);
+        shader.SetFloat("uWindSpeed", grass.WindSpeed);
+        shader.SetFloat("uMaxDistance", grass.MaxDistance);
+        shader.SetVector3("uGrassBase", MathUtil.ToLinear(grass.BaseColor));
+        shader.SetVector3("uGrassTip", MathUtil.ToLinear(grass.TipColor));
+
+        // The player (and up to three more things tagged "Player") push the blades aside.
+        _benders.Clear();
+        if (grass.PlayerBendRadius > 0f)
+            foreach (var obj in scene.Traverse())
+                if (_benders.Count < 4 && obj.Enabled && string.Equals(obj.Tag, "Player", StringComparison.OrdinalIgnoreCase))
+                    _benders.Add(obj);
+        for (int i = 0; i < 4; i++)
+        {
+            var b = i < _benders.Count ? _benders[i] : null;
+            float radius = b == null ? 0f : grass.PlayerBendRadius;
+            var position = b == null ? Vector3.Zero : new Vector3(b.WorldPosition.X, b.Bounds.Min.Y, b.WorldPosition.Z);
+            shader.SetVector4(BenderFields[i], new Vector4(position, radius));
+        }
+
+        GL.Disable(EnableCap.CullFace);   // blades are seen from both sides
+        DrawCalls += grass.Draw(new Frustum(camera.ViewMatrix * camera.ProjectionMatrix), camera.Position);
+        Lit.Use();
+    }
+
+    private static readonly string[] BenderFields = { "uBenders[0]", "uBenders[1]", "uBenders[2]", "uBenders[3]" };
 
     /// <summary>
     /// With a sea that reaches the horizon (and the camera above it), the sky draws distant sea below the horizon:

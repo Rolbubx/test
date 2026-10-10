@@ -318,6 +318,25 @@ to invert), Smooth, Flatten (levels to where you clicked), Noise or Paint, with 
 The terrain is a normal object with mesh collision; `GeneratedMap` stores its heights and colours as base64. Do not
 rotate or scale it. It is coloured per vertex (no texture layers yet).
 
+## Grass
+
+```csharp
+scene.Grass = new GrassLayer { Height = 0.45f, WindStrength = 0.35f };
+scene.Grass.Scatter(new Vector2(-20, -20), new Vector2(20, 20), density: 40f,
+    (x, z) => terrain.GetHeight(x, z));          // return null where no grass should grow
+```
+
+Thousands of blades drawn with GPU instancing (one draw call per 16 m chunk on screen; the demo has about 62,000).
+Every blade has its own height, width, facing, lean and shade; they sway in a gusty wind, bend away from objects tagged
+`Player` walking through them, get the sun's shadows, glow when the sun is behind them, darken when wet, and thin out
+gradually towards `MaxDistance`. Settings: `Height`, `Width`, `BaseColor`, `TipColor`, `WindStrength`, `WindSpeed`,
+`WindDirection`, `MaxDistance`, `PlayerBendRadius`. Brushes from code: `Paint(center, radius, density, ground, random)`,
+`Erase(center, radius, fraction, random)`, `Reground(...)`.
+
+**In the editor**: Terrain tab > Grass > **Paint grass** (or the Grass brush of the Terrain tool): left-drag on any ground,
+terrain or not, to grow grass up to the chosen density; Shift removes it. It never grows under water and follows the
+terrain when you sculpt. Compile saves every blade with the map.
+
 ## Object API
 
 ```csharp
@@ -484,7 +503,8 @@ instead of turning jagged, and the lighting is per pixel, so distant tiles do no
 tightly), each moving at the speed real water waves of its length move. Every frame the spectrum is turned into heights,
 slopes and choppy sideways displacement with inverse FFTs on a background thread (about 3 ms of CPU in a Release build,
 0.1 ms on the render thread). The patch is drawn twice, as is and 2.7x larger turned by 34 degrees, so it never visibly
-repeats; `WaveLength` is the longest waves, `WaveHeight` a typical crest, `Choppiness` sharpens them, and foam forms
+repeats; a third, smaller copy adds the fine chop real water always has, so it glitters and breaks up reflections even
+with the ripple layers off. `WaveLength` is the longest waves, `WaveHeight` a typical crest, `Choppiness` sharpens them, and foam forms
 where the surface folds over (whitecaps). The small ripples on top are periodic Perlin noise with domain warping, in
 layers turned at odd angles, with slow rougher and calmer patches. `EdgeFade` (metres, wider with distance) makes the
 outer border of a rectangle of water fade out instead of ending in a hard straight line.

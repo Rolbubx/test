@@ -50,6 +50,7 @@ public sealed class GameExporter
                 (EnvironmentExporter.FileName, EnvironmentExporter.Write(context)),
                 (PostProcessingExporter.FileName, PostProcessingExporter.Write(context)),
                 (TerrainExporter.FileName, TerrainExporter.Write(context)),
+                (GrassExporter.FileName, GrassExporter.Write(context)),
                 (ObjectsExporter.FileName, ObjectsExporter.Write(context)),
                 (WaterExporter.FileName, WaterExporter.Write(context)),
                 (SoundsExporter.FileName, SoundsExporter.Write(context)),
@@ -89,6 +90,7 @@ public sealed class GameExporter
         w.Line("EnvironmentGenerator.Build(scene);");
         w.Line("PostProcessingGenerator.Build(window.Renderer.Post);");
         w.Line("TerrainGenerator.Build(scene);");
+        w.Line("GrassGenerator.Build(scene);");
         w.Line("ObjectsGenerator.Build(scene);");
         w.Line("WaterGenerator.Build(scene);");
         w.Line("SoundsGenerator.Build(scene);   // after the objects, so sounds can follow them");

@@ -85,17 +85,29 @@ const float DETAIL_WEIGHT = 0.2;   // the short-wave copy is lower, as shorter w
 // The wave normal, height and foam per pixel, from the FFT textures: the lighting does not depend on how many vertices
 // the tile has (distant tiles do not look faceted), and the mipmaps average away waves smaller than a pixel.
 // height: about -1 trough .. 1 crest.
+// A third, smaller copy of the waves (2.7x smaller, turned the other way) adds the fine chop real water always has,
+// so the surface glitters and breaks up reflections even with the ripple layers off. The slope of each smaller
+// copy is about as strong as the one above it (short waves are lower, but just as steep).
+const mat2 MICRO_TURN = mat2(0.309017, -0.951057, 0.951057, 0.309017);   // -72 degrees
+const float MICRO_SCALE = 2.7;
+
 vec3 waveNormal(vec2 xz, out float height, out float foam)
 {
     vec2 largeUv = (CASCADE_TURN * (xz * CASCADE_SCALE) + 0.5 * uPatchSize) / uPatchSize;
     vec2 detailUv = xz / uPatchSize;
+    vec2 microUv = (MICRO_TURN * (xz * MICRO_SCALE) + 0.25 * uPatchSize) / uPatchSize;
     vec2 slopeLarge = transpose(CASCADE_TURN) * texture(uOceanSlope, largeUv).rg * CASCADE_SCALE;   // chain rule
     vec2 slopeDetail = texture(uOceanSlope, detailUv).rg * DETAIL_WEIGHT;
+    // Fades out with distance (and in its mip levels) where it could only shimmer.
+    float microFade = exp(-length(uViewPos - vWorldPos) * 0.035);
+    vec2 slopeMicro = transpose(MICRO_TURN) * texture(uOceanSlope, microUv).rg * DETAIL_WEIGHT * microFade;
     vec4 large = texture(uOceanDisplacement, largeUv);
     vec4 detail = texture(uOceanDisplacement, detailUv);
     height = (large.r + detail.r * DETAIL_WEIGHT) / (uWaveHeight * 1.2);
     foam = max(large.a, detail.a);
-    vec2 slope = slopeLarge + slopeDetail;
+    // The same slow wind patches as the ripples: some areas choppier than others, ripples on or off.
+    float gust = 0.45 + 1.1 * smoothstep(0.25, 0.75, texture(uRippleMap, xz * 0.011 + normalize(uWind + 1e-5) * uTime * 0.0048).a);
+    vec2 slope = slopeLarge + slopeDetail + slopeMicro * gust;
     return normalize(vec3(-slope.x, 1.0, -slope.y));
 }
 
@@ -237,8 +249,12 @@ void main()
     // water as time goes on), uneven along the shore.
     float shoreWaves = 1.0 - smoothstep(0.0, max(uShoreFoam, 0.01) * 1.6, thickness);
     float bands = 0.5 + 0.5 * sin(thickness * 9.0 / max(uShoreFoam, 0.05) + uTime * 1.6 + pattern * 6.0);
-    float foam = (crest * 0.5 + shore * shore * 1.4 + shoreWaves * smoothstep(0.8, 0.97, bands) * 0.45 + splashFoam) * uFoamAmount;
-    foam *= smoothstep(0.46, 0.54, pattern * 0.6 + pattern2 * 0.4);   // crisp foam edges, not a grey haze
+    float foam = (crest * 0.5 + shore * shore * 0.8 + shoreWaves * smoothstep(0.8, 0.97, bands) * 0.45 + splashFoam) * uFoamAmount;
+    // Foam appears where it is denser than a fine lace pattern: thick foam is solid white, thin foam breaks up into
+    // lacy strands and bubbles with soft edges (instead of hard blotches cut out of a noise).
+    float lace = pattern * 0.5 + pattern2 * 0.3 + texture(uRippleMap, p * 2.6 + flow * 1.3).a * 0.2;
+    float coverage = clamp(foam, 0.0, 1.5);
+    foam = smoothstep(lace - 0.1, lace + 0.05, coverage * 0.85) * min(coverage * 1.6, 1.0);
     vec3 foamColor = (uAmbient + uSunColor * max(uSunDir.y, 0.0) * 0.8) * 0.9;
     color = mix(color, foamColor, clamp(foam, 0.0, 1.0));
 

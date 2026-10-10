@@ -41,7 +41,10 @@ public sealed class BrushRing
     public void Hide() => Object.Visible = false;
 
     /// <summary>Places the ring around <paramref name="center"/>, lifting each point onto the terrain surface.</summary>
-    public void Show(Terrain terrain, Vector3 center, float radius)
+    public void Show(Terrain terrain, Vector3 center, float radius) => Show((x, z) => terrain.GetHeight(x, z), center, radius);
+
+    /// <summary>Shows the ring following any ground: <paramref name="groundHeight"/> gives its height at (x, z).</summary>
+    public void Show(Func<float, float, float> groundHeight, Vector3 center, float radius)
     {
         var vertices = _mesh.Vertices;
         for (int i = 0; i < Segments; i++)
@@ -49,7 +52,7 @@ public sealed class BrushRing
             float angle = MathF.Tau * i / Segments;
             float x = center.X + MathF.Cos(angle) * radius;
             float z = center.Z + MathF.Sin(angle) * radius;
-            vertices[i].Position = new Vector3(x, terrain.GetHeight(x, z) + 0.08f, z);
+            vertices[i].Position = new Vector3(x, groundHeight(x, z) + 0.08f, z);
         }
         _mesh.UpdateVertices();
         Object.Visible = true;

@@ -51,6 +51,9 @@ public sealed class Scene : IDisposable
     /// <summary>The rain (null = dry): <c>scene.Rain = new Rain { Intensity = 0.7f };</c> Drives the storm sky, fog, wet ground and puddles.</summary>
     public Rain? Rain { get; set; }
 
+    /// <summary>The grass of the scene (null = none). Paint it in the editor or fill it with <see cref="GrassLayer.Scatter"/>.</summary>
+    public GrassLayer? Grass { get; set; }
+
     /// <summary>How hard it rains right now, 0..1 (from <see cref="Rain"/>).</summary>
     public float RainAmount => Rain?.Amount ?? 0f;
 
@@ -360,5 +363,7 @@ public sealed class Scene : IDisposable
         Clear();
         Skybox?.Dispose();
         Skybox = null;
+        Grass?.Dispose();
+        Grass = null;
     }
 }

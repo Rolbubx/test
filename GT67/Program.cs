@@ -219,6 +219,18 @@ static void BuildDemoScene(Window window)
     var lake = new Water(lakeX, waterLevel, lakeZ, 2f * lakeRadius, 2f * lakeRadius) { Name = "Lake" };
     scene.Add(lake);
 
+    // --- grass: blades scattered on the ground, not in the lake or on its wet bed ------------------------------------
+    var random = new Random(7);
+    scene.Grass = new GrassLayer();
+    scene.Grass.Scatter(new Vector2(-24f, -24f), new Vector2(24f, 24f), 40f, (x, z) =>
+    {
+        float h = GroundHeight(x, z);
+        if (h < -0.12f) return null;                                   // under or at the water's edge
+        if (MathF.Abs(x) < 5f && z > -5f && z < 6f) return null;       // keep the showcase objects in the middle clear
+        float edge = MathF.Max(MathF.Abs(x), MathF.Abs(z));            // thins out towards the edge of the ground
+        return random.NextDouble() < 1.0 - Math.Clamp((edge - 18f) / 6f, 0f, 1f) ? h : null;
+    });
+
     // A rock half in the water, to show the shoreline foam and the refraction of submerged things.
     var rock = new GameObject(Primitives.Sphere(0.9f, 24), lakeX - 2.6f, -0.35f, lakeZ + 2.6f) { Name = "Rock", Color = new Color4(0.45f, 0.45f, 0.48f, 1f) };
     rock.Shininess = 8f;
