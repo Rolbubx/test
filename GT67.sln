@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GT67", "GT67\GT67.csproj", "{0C208FB2-CA4D-448D-8861-0F0B952129AB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+		Editor|Any CPU = Editor|Any CPU
+		Game|Any CPU = Game|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0C208FB2-CA4D-448D-8861-0F0B952129AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C208FB2-CA4D-448D-8861-0F0B952129AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C208FB2-CA4D-448D-8861-0F0B952129AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C208FB2-CA4D-448D-8861-0F0B952129AB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C208FB2-CA4D-448D-8861-0F0B952129AB}.Editor|Any CPU.ActiveCfg = Editor|Any CPU
+		{0C208FB2-CA4D-448D-8861-0F0B952129AB}.Editor|Any CPU.Build.0 = Editor|Any CPU
+		{0C208FB2-CA4D-448D-8861-0F0B952129AB}.Game|Any CPU.ActiveCfg = Game|Any CPU
+		{0C208FB2-CA4D-448D-8861-0F0B952129AB}.Game|Any CPU.Build.0 = Game|Any CPU
+	EndGlobalSection
+EndGlobal

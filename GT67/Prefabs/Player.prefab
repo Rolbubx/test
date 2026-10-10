@@ -1,0 +1,28 @@
+{
+  "Version": 1,
+  "Name": "Player",
+  "Root": {
+    "Name": "Player",
+    "Tag": "Player",
+    "Enabled": true,
+    "Visible": true,
+    "CastShadow": true,
+    "ReceiveShadow": true,
+    "Wireframe": false,
+    "CullFace": true,
+    "Collision": "Mesh",
+    "Primitive": "Primitives.Capsule(0.35f, 1.8f, 24)",
+    "Material": {
+      "Color": [ 0.25, 0.55, 1, 1 ]
+    },
+    "Scripts": [
+      {
+        "Type": "PlayerController",
+        "Values": {
+          "Radius": 0.35,
+          "SphereOffset": -0.55
+        }
+      }
+    ]
+  }
+}

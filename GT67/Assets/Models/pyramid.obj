@@ -1,0 +1,25 @@
+# Small test model: a square pyramid with UVs and a material.
+mtllib pyramid.mtl
+o Pyramid
+
+v -0.5 0.0 -0.5
+v  0.5 0.0 -0.5
+v  0.5 0.0  0.5
+v -0.5 0.0  0.5
+v  0.0 1.0  0.0
+
+vt 0.0 0.0
+vt 1.0 0.0
+vt 0.5 1.0
+vt 1.0 1.0
+vt 0.0 1.0
+
+usemtl Stone
+# base
+f 1/1 2/2 3/4
+f 1/1 3/4 4/5
+# sides
+f 4/1 3/2 5/3
+f 3/1 2/2 5/3
+f 2/1 1/2 5/3
+f 1/1 4/2 5/3

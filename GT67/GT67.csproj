@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RootNamespace>GT67</RootNamespace>
+        <!-- Lets the app start on a newer installed runtime when .NET 8 is not present -->
+        <RollForward>Major</RollForward>
+        <!-- GT67.xml (the descriptions of the scripting API) is written next to the exe; the editor's API reference reads it -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);1591;1573;1587;1570;1572;1574;1584;1658</NoWarn>
+        <!-- Editor = opens the map editor (debug build); Game = runs the game (optimised). Debug/Release keep the
+             IsEditor default from Program.cs. The editor / game command-line options still override all of them. -->
+        <Configurations>Debug;Release;Editor;Game</Configurations>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Editor'">
+        <DefineConstants>$(DefineConstants);DEBUG;TRACE;EDITOR</DefineConstants>
+        <Optimize>false</Optimize>
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>portable</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Game'">
+        <DefineConstants>$(DefineConstants);TRACE;GAME</DefineConstants>
+        <Optimize>true</Optimize>
+        <DebugType>portable</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="NLayer" Version="3.0.0" />
+        <PackageReference Include="NVorbis" Version="0.10.5" />
+        <PackageReference Include="OpenTK" Version="4.9.4" />
+        <PackageReference Include="Silk.NET.Assimp" Version="2.22.0" />
+        <PackageReference Include="StbImageSharp" Version="2.30.15" />
+        <!-- Compiles the scripts in Scripts/*.cs while the editor runs (not used by the game itself) -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+        <!-- 2D vector graphics and real font rendering for the UI (the Linux native part is a separate package) -->
+        <PackageReference Include="SkiaSharp" Version="3.119.4" />
+        <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="Shaders\**\*.*" CopyToOutputDirectory="PreserveNewest" LinkBase="Shaders" />
+        <None Include="Assets\**\*.*" CopyToOutputDirectory="PreserveNewest" LinkBase="Assets" />
+        <!-- Prefabs saved in the editor (Prefabs/*.prefab); the game spawns them with Prefab.Spawn / Game.SpawnPrefab -->
+        <None Include="Prefabs\**\*.*" CopyToOutputDirectory="PreserveNewest" LinkBase="Prefabs" />
+        <!-- Models, textures, sounds and UI images the editor shipped with the generated game (Generated/GeneratedGame/Assets) -->
+        <None Include="Generated\GeneratedGame\Assets\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Assets\Game\%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+</Project>
