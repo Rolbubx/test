@@ -81,8 +81,11 @@ public sealed class Window : GameWindow
             Flags = ContextFlags.ForwardCompatible | DebugFlag(),
             // MSAA is done on our own render target, not the window's framebuffer.
             NumberOfSamples = 0,
+            // OpenTK finds its loader by reflection, which trimming / Native AOT removes: load OpenGL ourselves.
+            AutoLoadBindings = false,
         })
     {
+        GL.LoadBindings(new GLFWBindingsContext());
         _maxFrames = maxFrames;
         Game = new Scripting.Game(this);
         Scene.Game = Game;

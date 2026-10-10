@@ -25,18 +25,38 @@
     </PropertyGroup>
 
     <!-- Game: the shipped game, without the editor. "dotnet publish -c Game -r win-x64" makes a Native AOT build:
-         one native exe (no .NET install needed, fast start) plus the native libraries, Shaders, Prefabs and Assets. -->
+         one native exe (no .NET install needed, fast start) plus the native libraries, Shaders, Prefabs and Assets.
+         Native AOT needs the Visual Studio "Desktop development with C++" tools; without them add -p:GameAot=false
+         for a trimmed, precompiled (ReadyToRun) single-file exe that also runs without .NET installed. -->
     <PropertyGroup Condition="'$(Configuration)' == 'Game'">
         <DefineConstants>$(DefineConstants);TRACE;GAME</DefineConstants>
         <Optimize>true</Optimize>
         <DebugType>none</DebugType>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
-        <PublishAot>true</PublishAot>
+        <GameAot Condition="'$(GameAot)' == ''">true</GameAot>
+        <PublishAot>$(GameAot)</PublishAot>
         <OptimizationPreference>Speed</OptimizationPreference>
         <InvariantGlobalization>true</InvariantGlobalization>
         <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
         <GameExcludedAssets>Assets\Models\**</GameExcludedAssets>
     </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Game' And '$(GameAot)' != 'true'">
+        <SelfContained>true</SelfContained>
+        <PublishTrimmed>true</PublishTrimmed>
+        <PublishReadyToRun>true</PublishReadyToRun>
+        <PublishSingleFile>true</PublishSingleFile>
+        <!-- The native libraries stay beside the exe: Silk.NET looks for Assimp there, not in the single file -->
+        <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
+    </PropertyGroup>
+
+    <!-- Native libraries come with debug symbols (libSkiaSharp.pdb alone is 80 MB); the game does not need them -->
+    <Target Name="RemoveGamePdbs" AfterTargets="Publish" Condition="'$(Configuration)' == 'Game'">
+        <ItemGroup>
+            <GamePdb Include="$(PublishDir)**\*.pdb" />
+        </ItemGroup>
+        <Delete Files="@(GamePdb)" />
+    </Target>
 
     <ItemGroup Condition="'$(Configuration)' == 'Game'">
         <!-- Scripts, effects and settings are found by reflection (ParameterAccess, prefabs): keep all of GT67's own code -->

@@ -88,6 +88,7 @@ public abstract class Script
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "GT67 is a trimmer root (GT67.csproj), so every script keeps its methods.")]
     private bool Overrides(string method) =>
         GetType().GetMethod(method, new[] { typeof(Keys), typeof(Vector3), typeof(Vector3) })?.DeclaringType != typeof(Script);
 }

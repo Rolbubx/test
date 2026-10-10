@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -47,6 +48,7 @@ public static class ParameterAccess
     private static readonly Dictionary<Type, MemberInfo[]> Cache = new();
 
     /// <summary>Every public settable property or field of a supported type.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "GT67 is a trimmer root (GT67.csproj), so scripts, effects and materials keep their members.")]
     public static IReadOnlyList<ParameterDescriptor> Describe(object target)
     {
         var type = target.GetType();
