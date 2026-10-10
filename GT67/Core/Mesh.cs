@@ -33,6 +33,46 @@ public sealed class Mesh : IDisposable
         Upload();
     }
 
+    private const string DataMagic = "GT67MESH";
+    private const int DataVersion = 1;
+
+    /// <summary>
+    /// Writes the vertices and indices to a small binary file (header, counts, then the raw data). The Compile button
+    /// ships one per object that has no model file or recipe, instead of pasting base64 strings into the code.
+    /// </summary>
+    public void SaveData(string file)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file))!);
+        using var writer = new BinaryWriter(File.Create(file));
+        writer.Write(DataMagic.ToCharArray());
+        writer.Write(DataVersion);
+        writer.Write(Vertex.SizeInBytes);
+        writer.Write(Vertices.Length);
+        writer.Write(Indices.Length);
+        writer.Write(MemoryMarshal.AsBytes<Vertex>(Vertices));
+        writer.Write(MemoryMarshal.AsBytes<uint>(Indices));
+    }
+
+    /// <summary>Loads a mesh written by <see cref="SaveData"/> (a relative path is relative to the executable).</summary>
+    public static Mesh LoadData(string path)
+    {
+        using var reader = new BinaryReader(File.OpenRead(ModelCache.ResolvePath(path)));
+        if (new string(reader.ReadChars(DataMagic.Length)) != DataMagic)
+            throw new InvalidDataException($"'{path}' is not a mesh data file.");
+        int version = reader.ReadInt32();
+        if (version != DataVersion)
+            throw new InvalidDataException($"'{path}' has mesh data version {version}, expected {DataVersion}.");
+        int vertexSize = reader.ReadInt32();
+        if (vertexSize != Vertex.SizeInBytes)
+            throw new InvalidDataException($"'{path}' was written with {vertexSize}-byte vertices, expected {Vertex.SizeInBytes}.");
+        int vertexCount = reader.ReadInt32(), indexCount = reader.ReadInt32();
+        var vertices = MemoryMarshal.Cast<byte, Vertex>(reader.ReadBytes(vertexCount * vertexSize)).ToArray();
+        var indices = MemoryMarshal.Cast<byte, uint>(reader.ReadBytes(indexCount * sizeof(uint))).ToArray();
+        if (vertices.Length != vertexCount || indices.Length != indexCount)
+            throw new InvalidDataException($"'{path}' is truncated.");
+        return new Mesh(vertices, indices);
+    }
+
     private void Upload()
     {
         _vao = GL.GenVertexArray();

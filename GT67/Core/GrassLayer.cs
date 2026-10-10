@@ -171,6 +171,38 @@ public sealed class GrassLayer : IDisposable
             Add(blade.Xyz, blade.W);
     }
 
+    private const string DataMagic = "GT67GRAS";
+    private const int DataVersion = 1;
+
+    /// <summary>
+    /// Writes every blade to a small binary file (header, count, then four floats per blade). The Compile button
+    /// ships it instead of pasting a huge base64 string into the generated code.
+    /// </summary>
+    public void SaveData(string file)
+    {
+        var blades = _chunks.Values.SelectMany(c => c.Blades).ToArray();
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file))!);
+        using var writer = new BinaryWriter(File.Create(file));
+        writer.Write(DataMagic.ToCharArray());
+        writer.Write(DataVersion);
+        writer.Write(blades.Length);
+        writer.Write(MemoryMarshal.AsBytes<Vector4>(blades));
+    }
+
+    /// <summary>Adds the blades of a file written by <see cref="SaveData"/> (a relative path is relative to the executable).</summary>
+    public void LoadData(string path)
+    {
+        using var reader = new BinaryReader(File.OpenRead(ModelCache.ResolvePath(path)));
+        if (new string(reader.ReadChars(DataMagic.Length)) != DataMagic)
+            throw new InvalidDataException($"'{path}' is not a grass data file.");
+        int version = reader.ReadInt32();
+        if (version != DataVersion)
+            throw new InvalidDataException($"'{path}' has grass data version {version}, expected {DataVersion}.");
+        int count = reader.ReadInt32();
+        foreach (var blade in MemoryMarshal.Cast<byte, Vector4>(reader.ReadBytes(count * 16)).ToArray())
+            Add(blade.Xyz, blade.W);
+    }
+
     // ---- drawing ------------------------------------------------------------------------------------
 
     /// <summary>

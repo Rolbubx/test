@@ -103,20 +103,6 @@ public sealed class CodeWriter
     public static string Str(string s) =>
         "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t") + "\"";
 
-    /// <summary>A very long string as several concatenated literals, so the file stays readable and editors cope.</summary>
-    public static string LongString(string s)
-    {
-        const int chunk = 120;
-        if (s.Length <= chunk) return Str(s);
-        var sb = new StringBuilder();
-        for (int i = 0; i < s.Length; i += chunk)
-        {
-            if (i > 0) sb.Append('\n').Append(' ', 16).Append("+ ");
-            sb.Append('"').Append(s, i, Math.Min(chunk, s.Length - i)).Append('"');
-        }
-        return sb.ToString();
-    }
-
     public static string Literal(object value) => value switch
     {
         float f => F(f),

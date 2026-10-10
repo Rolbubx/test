@@ -3,7 +3,7 @@ using static GT67.Editor.Export.CodeWriter;
 
 namespace GT67.Editor.Export;
 
-/// <summary>Writes GrassGenerator.cs: the grass settings and every blade (as base64).</summary>
+/// <summary>Writes GrassGenerator.cs: the grass settings; every blade goes to a binary file in <c>Assets/Grass</c>.</summary>
 public static class GrassExporter
 {
     public const string FileName = "GrassGenerator.cs";
@@ -19,10 +19,8 @@ public static class GrassExporter
         {
             w.Line("scene.Grass = new GrassLayer");
             w.Initializer(grass, new GrassLayer(), closing: ";");
-            w.Line("scene.Grass.Import(");
-            w.Indent++;
-            w.Line(LongString(grass.Export()) + ");");
-            w.Indent--;
+            if (context.Assets.WriteData("Grass", "Grass.grass", grass.SaveData) is { } data)
+                w.Line($"scene.Grass.LoadData({Str(data)});");
         }
         w.Close();
         w.Close();
