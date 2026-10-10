@@ -5,5 +5,5 @@
   "MoveSnap": 0.5,
   "RotateSnap": 15,
   "ScaleSnap": 0.1,
-  "debug_flag": false
+  "debug_flag": true
 }

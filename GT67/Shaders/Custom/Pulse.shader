@@ -1,16 +1,16 @@
-// Pulse: a glowing, pulsing surface. Save the file and the engine reloads it by itself.
-// 'param' lines become values you can change per object in the editor's Inspector.
-param color Tint = (1.0, 0.45, 0.15)
-param float Speed = 2.0
-param float Glow = 1.0
+// RainbowGlow: un shader arc-en-ciel pour le moteur GT67
+param float Speed = 1.5
+param float ColorWave = 3.0
+param float Glow = 2.0
 
-// Inside 'surface' you write GLSL. You can read:
-//   uv, position (world), normal, view (towards the camera), time (seconds), base (the object's colour)
-// and set:
-//   albedo (colour), emission (glow, added on top), shininess, specular (a multiplier)
 surface
 {
-    float pulse = 0.5 + 0.5 * sin(time * Speed + position.y * 2.0);
-    albedo = base * Tint;
-    emission = Tint * pulse * Glow;
+    float hue = time * Speed + position.y * ColorWave;
+    
+    float r = 0.5 + 0.5 * cos(hue);
+    float g = 0.5 + 0.5 * cos(hue + 2.09);
+    float b = 0.5 + 0.5 * cos(hue + 4.18);
+    
+    albedo = base * vec3(r, g, b);
+    emission = vec3(r, g, b) * Glow;
 }

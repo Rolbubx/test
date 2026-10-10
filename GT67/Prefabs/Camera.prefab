@@ -1,0 +1,44 @@
+{
+  "Version": 1,
+  "Name": "Camera",
+  "Root": {
+    "Name": "Camera",
+    "Tag": null,
+    "Enabled": true,
+    "Visible": true,
+    "CastShadow": false,
+    "ReceiveShadow": true,
+    "Wireframe": false,
+    "CullFace": true,
+    "Collision": "None",
+    "Position": null,
+    "Rotation": [
+      -22.619864,
+      0,
+      -0
+    ],
+    "Scale": null,
+    "Model": null,
+    "Primitive": "Primitives.CameraBody(0.6f)",
+    "Vertices": null,
+    "Indices": null,
+    "Material": {
+      "Color": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ]
+    },
+    "Texture": null,
+    "Shader": null,
+    "ShaderParams": null,
+    "Scripts": [
+      {
+        "Type": "GameCamera",
+        "Values": null
+      }
+    ],
+    "Children": null
+  }
+}
