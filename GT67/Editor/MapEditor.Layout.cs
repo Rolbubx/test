@@ -330,7 +330,16 @@ public sealed partial class MapEditor
         g.SeparatorText("World");
         if (g.MenuItem("Point light", icon: IconKind.Light)) AddPointLight();
         if (g.MenuItem("Water (lake)", icon: IconKind.Water)) AddWater();
-        if (g.MenuItem("Terrain brush", "T", icon: IconKind.Terrain)) Tool = EditorTool.Terrain;
+        if (g.MenuItem("Terrain", "T", icon: IconKind.Terrain))
+        {
+            // One terrain per scene: create it if there is none, otherwise pick it up for sculpting.
+            if (Scene.Terrains.FirstOrDefault() is { } existing)
+            {
+                Selected = existing.Object;
+                Tool = EditorTool.Terrain;
+            }
+            else CreateTerrain();
+        }
 
         g.SeparatorText("Gameplay");
         if (g.MenuItem("Player (capsule)", icon: IconKind.Sphere)) AddPlayer();
@@ -360,6 +369,13 @@ public sealed partial class MapEditor
         if (Tool == EditorTool.Terrain && !Playing)
         {
             DrawTerrainPanel();
+            return;
+        }
+        // A selected terrain shows its tools first, like Unity, then its object settings.
+        if (Selected is { } picked && Scene.Terrains.Any(t => t.Object == picked) && !Playing)
+        {
+            DrawTerrainPanel();
+            if (g.CollapsingHeader("Object (transform, material...)", defaultOpen: false)) _window.DebugUI.DrawInspector();
             return;
         }
 
@@ -457,11 +473,6 @@ public sealed partial class MapEditor
     public void DrawInspectorExtras(GameObject obj)
     {
         var g = G;
-        if (Scene.Terrains.Any(t => t.Object == obj))
-        {
-            g.SeparatorText("Terrain");
-            if (g.IconTextButton(IconKind.Terrain, "Sculpt and paint (T)", 0f, ButtonStyle.Primary)) Tool = EditorTool.Terrain;
-        }
         DrawPrefabSection(obj);
 
         g.SeparatorText("Collision");

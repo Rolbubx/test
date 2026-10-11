@@ -182,19 +182,28 @@ public sealed partial class MapEditor
         }
     }
 
+    /// <summary>The terrain tools, in the Inspector: while the Terrain brush (T) is active or a terrain is selected.</summary>
     private void DrawTerrainPanel()
     {
         var g = G;
         var terrain = ActiveTerrain();
-        if (Tool != EditorTool.Terrain)
+        g.Heading("Terrain");
+        if (Tool == EditorTool.Terrain)
         {
-            if (g.IconTextButton(IconKind.Terrain, "Start sculpting")) Tool = EditorTool.Terrain;
-            g.TextDim("Or press T. Left-drag on the terrain to paint with the brush.");
+            if (g.IconTextButton(IconKind.Check, "Done", 100f)) Tool = EditorTool.Select;
+            g.Tooltip("Back to the Select tool (Q).");
+            g.SameLine();
+            g.TextDim("Left-drag in the view to use the brush.");
+        }
+        else if (terrain != null)
+        {
+            if (g.IconTextButton(IconKind.Terrain, "Sculpt and paint (T)", 0f, ButtonStyle.Primary)) Tool = EditorTool.Terrain;
         }
 
         if (terrain == null)
         {
-            g.TextWrapped("There is no terrain yet. Create one to sculpt and paint.", dim: true);
+            g.TextWrapped("This scene has no terrain yet. Create one, then sculpt it, paint it and grow grass on it.", dim: true);
+            DrawNewTerrain();
         }
         else
         {
@@ -243,23 +252,34 @@ public sealed partial class MapEditor
 
         DrawGrassSection();
 
+        if (terrain != null && g.CollapsingHeader("Replace with a new terrain", defaultOpen: false)) DrawNewTerrain();
+    }
+
+    private void DrawNewTerrain()
+    {
+        var g = G;
         g.SeparatorText("New terrain");
         g.Drag("Size (m)", _newTerrainSize, 1f, v => _newTerrainSize = v, 10f, 1000f);
         int resolution = _newTerrainResolution;
         if (g.SliderInt("Resolution", ref resolution, 32, 384)) _newTerrainResolution = resolution;
         g.TextDim($"{(_newTerrainResolution + 1) * (_newTerrainResolution + 1):N0} vertices");
-        if (g.Button(Scene.Terrains.Count > 0 ? "Replace terrain" : "Create terrain", 0f, ButtonStyle.Primary))
+        if (g.IconTextButton(IconKind.Terrain, Scene.Terrains.Count > 0 ? "Replace terrain" : "Create terrain", 0f, ButtonStyle.Primary))
+            CreateTerrain();
+    }
+
+    /// <summary>A new flat terrain (replacing the scene's old one), selected and ready for the brush.</summary>
+    private void CreateTerrain()
+    {
+        foreach (var old in Scene.Terrains.ToList())
         {
-            foreach (var old in Scene.Terrains.ToList())
-            {
-                Scene.Remove(old);
-                old.Dispose();
-            }
-            var fresh = new Terrain(_newTerrainSize, _newTerrainSize, _newTerrainResolution);
-            Scene.Add(fresh);
-            Selected = fresh.Object;
-            Say($"Created a {_newTerrainSize:0} m terrain.");
+            Scene.Remove(old);
+            old.Dispose();
         }
+        var fresh = new Terrain(_newTerrainSize, _newTerrainSize, _newTerrainResolution) { Object = { Name = "Terrain" } };
+        Scene.Add(fresh);
+        Selected = fresh.Object;
+        Tool = EditorTool.Terrain;
+        Say($"Created a {_newTerrainSize:0} m terrain: left-drag in the view to sculpt it (brushes in the Inspector).");
     }
 
     private void DrawSwatch(string name, Color4 color)
