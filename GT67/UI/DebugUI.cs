@@ -643,7 +643,17 @@ public sealed class DebugUI : IDisposable
         foreach (var effect in post.Effects)
         {
             g.PushId(effect.Name);
-            if (g.CollapsingHeader(effect.Name, defaultOpen: true)) ParameterEditor.Draw(g, effect);
+            if (g.CollapsingHeader(effect.Name, defaultOpen: true))
+            {
+                if (effect is Effects.SunRaysEffect rays)
+                {
+                    // The main choice first: normal (screen-space) sun rays, or volumetric shafts seen in every direction
+                    g.Check("Volumetric (seen in every direction)", rays.Volumetric, v => rays.Volumetric = v);
+                    g.TextDim(rays.Volumetric ? "Beams in the air, even looking away from the sun." : "Normal sun rays: only while the sun is on screen.");
+                    ParameterEditor.Draw(g, effect, nameof(rays.Volumetric));
+                }
+                else ParameterEditor.Draw(g, effect);
+            }
             g.PopId();
         }
     }

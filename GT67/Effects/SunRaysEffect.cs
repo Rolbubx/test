@@ -23,6 +23,12 @@ public sealed class SunRaysEffect : PostEffect
     private float _screenFade, _sunFade;
     private int _frame;
 
+    /// <summary>
+    /// On: volumetric shafts in the air, seen in every direction, plus the glare. Off: the normal (screen-space) sun
+    /// rays only, streaming from the sun's disc while it is on screen; cheaper.
+    /// </summary>
+    public bool Volumetric { get; set; } = true;
+
     // ---- glare (screen space, while the sun is on screen) -------------------------------------------
 
     /// <summary>Strength of the glare streaming from the sun's disc while it is on screen.</summary>
@@ -93,7 +99,7 @@ public sealed class SunRaysEffect : PostEffect
             _screenFade = MathUtil.Clamp(1f - offscreen, 0f, 1f);
         }
 
-        return _sunFade > 0f && (Shafts > 0f || (Intensity > 0f && _screenFade > 0f));
+        return _sunFade > 0f && ((Volumetric && Shafts > 0f) || (Intensity > 0f && _screenFade > 0f));
     }
 
     public override void Apply(PostContext context, int input)
@@ -115,7 +121,7 @@ public sealed class SunRaysEffect : PostEffect
         if (glare) DrawGlare(context, input, clouds, invViewProj);
         else Clear(_rayTarget!);
 
-        bool shafts = Shafts > 0f;
+        bool shafts = Volumetric && Shafts > 0f;
         if (shafts) DrawShafts(context, sun, clouds, invViewProj);
         else Clear(_shaftA!);
 
@@ -130,7 +136,9 @@ public sealed class SunRaysEffect : PostEffect
         _composite.SetFloat("uDarken", shafts ? Math.Clamp(ShadowContrast, 0f, 1f) * MathF.Min(Shafts, 1f) * _sunFade : 0f);
         _composite.SetVector3("uBeamColor", light * 0.6f);
         float peak = MathF.Max(light.X, MathF.Max(light.Y, MathF.Max(light.Z, 1e-4f)));
-        _composite.SetVector3("uGlareColor", light / peak * (Math.Clamp(Intensity, 0f, 2f) * _screenFade * _sunFade));
+        // Alone (not volumetric), the glare is the whole effect: as strong as the classic sun rays
+        float glareStrength = Math.Clamp(Intensity, 0f, 2f) * (shafts ? 1f : 1.5f);
+        _composite.SetVector3("uGlareColor", light / peak * (glareStrength * _screenFade * _sunFade));
         context.BindTexture(TextureUnit.Texture1, _shaftA!.ColorTexture);
         context.BindTexture(TextureUnit.Texture2, _rayTarget!.ColorTexture);
         context.BindTexture(TextureUnit.Texture0, input);

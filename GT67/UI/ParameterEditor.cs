@@ -8,11 +8,12 @@ namespace GT67.UI;
 public static class ParameterEditor
 {
     /// <summary>Returns true if any value was changed this frame.</summary>
-    public static bool Draw(Gui.Gui g, object target)
+    public static bool Draw(Gui.Gui g, object target, params string[] skip)
     {
         bool changed = false;
         foreach (var parameter in ParameterAccess.Describe(target))
         {
+            if (skip.Contains(parameter.Name)) continue;
             g.PushId(parameter.Name);
             changed |= DrawOne(g, parameter);
             g.PopId();
