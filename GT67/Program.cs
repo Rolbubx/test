@@ -1,4 +1,4 @@
-using GT67.Core;
+﻿using GT67.Core;
 using GT67.Effects;
 using GT67.Generated;
 using GT67.UI;
@@ -13,7 +13,8 @@ using OpenTK.Mathematics;
 // false: run the game. With "--generated" it builds the game the editor wrote (GameGenerator.Build, including the
 //        game UI designed in the editor); otherwise it builds the demo scene at the bottom of this file.
 //        "--editor --generated" opens the generated game in the editor to keep working on it.
-// Both the editor and the game start from the demo scene (and its HUD/menu), unless "--generated" is given.
+// The editor opens the last compiled map ("--demo" for the demo scene); the game starts from the demo scene (and
+// its HUD/menu) unless "--generated" is given (the Game build always runs the compiled map).
 // The build configuration picks the default: "Editor" opens the editor, "Game" runs the game (Debug/Release: below).
 #if EDITOR
 bool IsEditor = true;
@@ -32,7 +33,7 @@ int maxFrames = 0;
 bool noVsync = false, dry = false;
 var offList = new List<string>();
 string? playSound = null;
-bool noSky = false, noShadow = false, noReflect = false, generated = false, exportDemo = false;
+bool noSky = false, noShadow = false, noReflect = false, generated = false, exportDemo = false, demo = false;
 #if GAME
 generated = true;   // the shipped game is the one the editor compiled (the demo scene is only a fallback)
 _ = exportDemo;     // "--export-demo" needs the editor, which the Game build leaves out
@@ -51,6 +52,7 @@ for (int i = 1; i < argv.Length; i++)
     if (argv[i] == "--noreflect") noReflect = true;
     if (argv[i] == "--noshadow") noShadow = true;
     if (argv[i] == "--generated") generated = true;
+    if (argv[i] == "--demo") demo = true;   // the editor: open the demo scene instead of the last compiled map
     if (argv[i] == "--export-demo") exportDemo = true;   // write the demo scene through the exporter (a test of Compile)
     if (argv[i] == "--editor") IsEditor = true;
     if (argv[i] == "--game") IsEditor = false;
@@ -59,6 +61,8 @@ for (int i = 1; i < argv.Length; i++)
     if (argv[i] == "--camera" && i + 1 < argv.Length) cameraView = ParseFloats(argv[i + 1]);   // "x,y,z,targetX,targetY,targetZ"
     if (argv[i] == "--scene" && i + 1 < argv.Length) startScene = argv[i + 1];   // with --generated: start in this scene
 }
+// The editor opens the map saved by the last Compile (the demo scene only when nothing was compiled yet, or with --demo).
+if (IsEditor && !demo) generated = true;
 
 
 using var window = new Window(IsEditor ? "GT67 Editor" : "GT67", 1280, 720, maxFrames) { IsEditor = IsEditor, UncappedFps = noVsync, ScreenshotPath = screenshot };
