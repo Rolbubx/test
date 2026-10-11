@@ -43,6 +43,13 @@ public sealed class Game
     /// </summary>
     public PostProfile Volume => _window.Scene.Volume;
 
+    /// <summary>
+    /// A post-processing effect as it runs right now, to change it live:
+    /// <c>Game.GetEffect&lt;ColorCorrectionEffect&gt;()!.Brightness = 0.2f</c>. Null if the pipeline has no such effect.
+    /// Loading a scene sets every effect back to that scene's Volume.
+    /// </summary>
+    public T? GetEffect<T>() where T : PostEffect => _window.Renderer.Post.Get<T>();
+
     /// <summary>Starts the current scene again from the beginning.</summary>
     public void ReloadScene() => _window.Scenes.LoadScene(_window.Scene.Name);
 
