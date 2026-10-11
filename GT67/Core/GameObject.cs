@@ -566,7 +566,10 @@ public sealed class GameObject
 
     // ---- picking ---------------------------------------------------------------------------------
 
-    /// <summary>Ray test against the AABB first, then the actual triangles. Distance is along the ray.</summary>
+    /// <summary>
+    /// Ray test against the AABB first, then the actual triangles (through the model's triangle tree, the one collisions
+    /// use, so even huge models answer quickly). Distance is along the ray.
+    /// </summary>
     public bool Raycast(Ray ray, out float distance)
     {
         distance = float.MaxValue;
@@ -579,25 +582,6 @@ public sealed class GameObject
         var inverse = Matrix4.Invert(world);
         var origin = Vector3.TransformPosition(ray.Origin, inverse);
         var direction = Vector3.TransformVector(ray.Direction, inverse);
-
-        bool hit = false;
-        foreach (var part in _model.Parts)
-        {
-            var mesh = part.Mesh;
-            if (mesh.PrimitiveType != PrimitiveType.Triangles) continue;
-
-            var v = mesh.Vertices;
-            var idx = mesh.Indices;
-            for (int i = 0; i + 2 < idx.Length; i += 3)
-            {
-                if (MathUtil.RayTriangle(origin, direction, v[idx[i]].Position, v[idx[i + 1]].Position,
-                        v[idx[i + 2]].Position, out float t) && t < distance)
-                {
-                    distance = t;
-                    hit = true;
-                }
-            }
-        }
-        return hit;
+        return _model.GetMeshBvh().Raycast(origin, direction, out distance);
     }
 }

@@ -76,15 +76,19 @@ internal sealed class TriangleBvh
     public (Vector3 a, Vector3 b, Vector3 c) Triangle(int index) =>
         (_vertices[index * 3], _vertices[index * 3 + 1], _vertices[index * 3 + 2]);
 
+    // The tree is at most a few dozen levels deep, and a walk keeps at most one pending node per level
+    private const int MaxStack = 128;
+
     /// <summary>Adds the indices of every triangle whose leaf box overlaps <paramref name="box"/>.</summary>
     public void Query(Aabb box, List<int> result)
     {
         if (_nodes.Count == 0) return;
-        var stack = new Stack<int>();
-        stack.Push(0);
-        while (stack.Count > 0)
+        Span<int> stack = stackalloc int[MaxStack];
+        int count = 0;
+        stack[count++] = 0;
+        while (count > 0)
         {
-            var node = _nodes[stack.Pop()];
+            var node = _nodes[stack[--count]];
             if (node.Min.X > box.Max.X || node.Max.X < box.Min.X ||
                 node.Min.Y > box.Max.Y || node.Max.Y < box.Min.Y ||
                 node.Min.Z > box.Max.Z || node.Max.Z < box.Min.Z) continue;
@@ -93,12 +97,70 @@ internal sealed class TriangleBvh
             {
                 for (int i = 0; i < node.Right; i++) result.Add(_order[node.Left + i]);
             }
-            else
+            else if (count + 2 <= MaxStack)
             {
-                stack.Push(node.Left);
-                stack.Push(node.Right);
+                stack[count++] = node.Left;
+                stack[count++] = node.Right;
             }
         }
+    }
+
+    /// <summary>
+    /// The nearest triangle hit by a ray in the model's own space. <paramref name="direction"/> need not be unit length:
+    /// <paramref name="distance"/> is measured in multiples of it. Only the boxes the ray crosses are visited, so a model
+    /// of millions of triangles costs a few dozen box tests and a handful of triangle tests.
+    /// </summary>
+    public bool Raycast(Vector3 origin, Vector3 direction, out float distance)
+    {
+        distance = float.MaxValue;
+        if (_nodes.Count == 0) return false;
+
+        var inverse = new Vector3(
+            MathF.Abs(direction.X) > 1e-12f ? 1f / direction.X : float.MaxValue,
+            MathF.Abs(direction.Y) > 1e-12f ? 1f / direction.Y : float.MaxValue,
+            MathF.Abs(direction.Z) > 1e-12f ? 1f / direction.Z : float.MaxValue);
+
+        bool hit = false;
+        Span<int> stack = stackalloc int[MaxStack];
+        int count = 0;
+        stack[count++] = 0;
+        while (count > 0)
+        {
+            var node = _nodes[stack[--count]];
+            if (!RayHitsBox(origin, inverse, node.Min, node.Max, distance)) continue;
+
+            if (node.IsLeaf)
+            {
+                for (int i = 0; i < node.Right; i++)
+                {
+                    int t = _order[node.Left + i];
+                    if (Utils.MathUtil.RayTriangle(origin, direction, _vertices[t * 3], _vertices[t * 3 + 1], _vertices[t * 3 + 2], out float d) &&
+                        d < distance)
+                    {
+                        distance = d;
+                        hit = true;
+                    }
+                }
+            }
+            else if (count + 2 <= MaxStack)
+            {
+                stack[count++] = node.Left;
+                stack[count++] = node.Right;
+            }
+        }
+        return hit;
+    }
+
+    /// <summary>Slab test: does the ray cross the box closer than <paramref name="maxDistance"/>?</summary>
+    private static bool RayHitsBox(Vector3 origin, Vector3 inverse, Vector3 min, Vector3 max, float maxDistance)
+    {
+        float t1 = (min.X - origin.X) * inverse.X, t2 = (max.X - origin.X) * inverse.X;
+        float near = MathF.Min(t1, t2), far = MathF.Max(t1, t2);
+        t1 = (min.Y - origin.Y) * inverse.Y; t2 = (max.Y - origin.Y) * inverse.Y;
+        near = MathF.Max(near, MathF.Min(t1, t2)); far = MathF.Min(far, MathF.Max(t1, t2));
+        t1 = (min.Z - origin.Z) * inverse.Z; t2 = (max.Z - origin.Z) * inverse.Z;
+        near = MathF.Max(near, MathF.Min(t1, t2)); far = MathF.Min(far, MathF.Max(t1, t2));
+        return far >= MathF.Max(near, 0f) && near < maxDistance;
     }
 
     private int Build(int start, int count)
