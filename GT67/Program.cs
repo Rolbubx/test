@@ -25,6 +25,8 @@ bool IsEditor = false;
 
 // Optional command line: "--frames N" closes the window after N frames (smoke tests), "--editor" / "--game"
 // override IsEditor, "--debug" turns on the temporary DebugFlag.On (the editor keeps it in its settings instead).
+// "--camera x,y,z,tx,ty,tz" fixes the view (from x,y,z towards tx,ty,tz) and "--screenshot file.png" saves the last
+// frame of a "--frames" run, e.g. to compare a shader change before and after.
 int maxFrames = 0;
 bool noVsync = false, dry = false;
 var offList = new List<string>();
@@ -34,6 +36,8 @@ bool noSky = false, noShadow = false, noReflect = false, generated = false, expo
 generated = true;   // the shipped game is the one the editor compiled (the demo scene is only a fallback)
 _ = exportDemo;     // "--export-demo" needs the editor, which the Game build leaves out
 #endif
+string? screenshot = null;
+float[]? cameraView = null;
 var argv = Environment.GetCommandLineArgs();
 for (int i = 1; i < argv.Length; i++)
 {
@@ -50,13 +54,23 @@ for (int i = 1; i < argv.Length; i++)
     if (argv[i] == "--editor") IsEditor = true;
     if (argv[i] == "--game") IsEditor = false;
     if (argv[i] == "--debug") DebugFlag.On = true;
+    if (argv[i] == "--screenshot" && i + 1 < argv.Length) screenshot = argv[i + 1];   // with --frames: save the last frame
+    if (argv[i] == "--camera" && i + 1 < argv.Length) cameraView = ParseFloats(argv[i + 1]);   // "x,y,z,targetX,targetY,targetZ"
 }
 
 
-using var window = new Window(IsEditor ? "GT67 Editor" : "GT67", 1280, 720, maxFrames) { IsEditor = IsEditor, UncappedFps = noVsync };
+using var window = new Window(IsEditor ? "GT67 Editor" : "GT67", 1280, 720, maxFrames) { IsEditor = IsEditor, UncappedFps = noVsync, ScreenshotPath = screenshot };
 window.Initialize = w =>
 {
     SetupPostProcessing(w, IsEditor);
+
+    // "--camera": a fixed view for screenshots; camera scripts leave the camera alone, as in the editor's free view.
+    if (cameraView is { Length: 6 } c)
+    {
+        w.Game.ViewDetached = true;
+        w.Camera.Position = new Vector3(c[0], c[1], c[2]);
+        w.Camera.LookAt(new Vector3(c[3], c[4], c[5]));
+    }
 
 #if !GAME
     if (exportDemo)
@@ -91,6 +105,9 @@ window.Initialize = w =>
 };
 window.Run();
 return 0;
+
+static float[] ParseFloats(string text) =>
+    text.Split(',').Select(s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
 
 // ---- Post-processing: effects are added in code and run in this order (HDR first, then tone map, then LDR) ------
 static void SetupPostProcessing(Window window, bool editor)

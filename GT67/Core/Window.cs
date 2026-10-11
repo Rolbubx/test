@@ -20,6 +20,9 @@ public sealed class Window : GameWindow
     private readonly int _maxFrames;
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
 
+    /// <summary>Command line "--screenshot file.png" (with "--frames N"): saves the last frame before closing.</summary>
+    public string? ScreenshotPath { get; set; }
+
     /// <summary>Command line "--novsync": measure raw speed instead of the 60 fps cap.</summary>
     public bool UncappedFps { get; set; }
     private int _frameCount;
@@ -210,6 +213,7 @@ public sealed class Window : GameWindow
         Renderer.ReportFrameTime(dt);
 
         Ui.End();
+        if (ScreenshotPath != null && _maxFrames > 0 && _frameCount + 1 >= _maxFrames) SaveScreenshot(ScreenshotPath);
         SwapBuffers();
 
 #if DEBUG
@@ -220,6 +224,28 @@ public sealed class Window : GameWindow
             Log.Info($"Smoke test: {_frameCount} frames in {_clock.Elapsed.TotalSeconds:0.0} s = {_frameCount / _clock.Elapsed.TotalSeconds:0} fps average.");
             Close();
         }
+    }
+
+    /// <summary>Writes what is in the back buffer (the finished frame) to a PNG file.</summary>
+    private void SaveScreenshot(string file)
+    {
+        int width = FramebufferSize.X, height = FramebufferSize.Y;
+        var pixels = new byte[width * height * 4];
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, 0);
+        GL.ReadBuffer(ReadBufferMode.Back);
+        GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
+        GL.ReadPixels(0, 0, width, height, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+
+        using var bitmap = new SkiaSharp.SKBitmap(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Opaque);
+        var target = bitmap.GetPixelSpan();
+        int row = width * 4;
+        for (int y = 0; y < height; y++)   // GL rows go bottom-up
+            pixels.AsSpan((height - 1 - y) * row, row).CopyTo(target.Slice(y * row, row));
+
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file))!);
+        using var stream = File.Create(file);
+        bitmap.Encode(stream, SkiaSharp.SKEncodedImageFormat.Png, 100);
+        Log.Info($"Screenshot saved to {Path.GetFullPath(file)}.");
     }
 
     /// <summary>Makes the renderer draw into <see cref="Viewport"/> (a part of the window while the editor panels surround it).</summary>
