@@ -37,6 +37,12 @@ public sealed class Game
     /// </summary>
     public void LoadScene(string name) => _window.Scenes.LoadScene(name);
 
+    /// <summary>
+    /// The post-processing of the scene being played, including its screen shaders:
+    /// <c>Game.Volume.AddScreenShader("PS1")</c>, <c>Game.Volume.GetScreenShader("CRT")?.Set("Curvature", 0.2f)</c>.
+    /// </summary>
+    public PostProfile Volume => _window.Scene.Volume;
+
     /// <summary>Starts the current scene again from the beginning.</summary>
     public void ReloadScene() => _window.Scenes.LoadScene(_window.Scene.Name);
 

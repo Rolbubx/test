@@ -62,7 +62,7 @@ public sealed class DebugUI : IDisposable
         var g = G;
         var library = _window.Renderer.Custom;
         var names = new List<string> { "(normal)" };
-        names.AddRange(library.Shaders.Select(s => s.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase));
+        names.AddRange(library.Shaders.Where(s => !s.IsScreen).Select(s => s.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase));
 
         int index = Math.Max(0, names.FindIndex(n => string.Equals(n, obj.Material.CustomShader, StringComparison.OrdinalIgnoreCase)));
         if (g.Combo("Shader", ref index, names)) obj.Material.CustomShader = index == 0 ? "" : names[index];
@@ -550,12 +550,108 @@ public sealed class DebugUI : IDisposable
         g.Slider("Exposure", post.Exposure, 0.1f, 4f, v => post.Exposure = v);
         g.Choose("Operator", post.ToneMap, v => post.ToneMap = v);
 
+        DrawScreenShaders(_window.Scene.Volume);
+
         g.SeparatorText("Post-processing effects");
         foreach (var effect in post.Effects)
         {
             g.PushId(effect.Name);
             if (g.CollapsingHeader(effect.Name, defaultOpen: true)) ParameterEditor.Draw(g, effect);
             g.PopId();
+        }
+    }
+
+    private int _addScreenChoice = -1;
+
+    /// <summary>The scene's screen shaders (PS1, CRT, your own .shader files with a 'screen' block): add, order, tune, remove.</summary>
+    private void DrawScreenShaders(PostProfile volume)
+    {
+        var g = G;
+        var library = _window.Renderer.Custom;
+        g.SeparatorText("Screen shaders");
+        if (volume.ScreenShaders.Count == 0)
+            g.TextWrapped("Shaders for the whole picture, run after the effects below: PS1, CRT, or your own (Project > Shaders > New screen shader).", dim: true);
+
+        for (int i = 0; i < volume.ScreenShaders.Count; i++)
+        {
+            var use = volume.ScreenShaders[i];
+            g.PushId("screen" + i);
+            if (g.CollapsingHeader(use.Name + "##screenshader", defaultOpen: true))
+            {
+                g.Check("Enabled", use.Enabled, v => use.Enabled = v);
+                var shader = library.Get(use.Name);
+                if (shader is not { IsScreen: true }) g.TextStatus($"No screen shader called '{use.Name}' in Shaders/Custom.", error: true);
+                else
+                {
+                    if (shader.Error != null) g.TextStatus(shader.Error, error: true);
+                    if (shader.VertexSnap > 0f) g.TextDim($"Snaps vertices to a {shader.VertexSnap:0}-row grid.");
+                    foreach (var param in shader.Params) DrawScreenParam(use, param);
+                }
+
+                if (g.IconButton(IconKind.ArrowUp, "up")) volume.MoveScreenShader(use, -1);
+                g.Tooltip("Run earlier");
+                g.SameLine();
+                if (g.IconButton(IconKind.ArrowDown, "down")) volume.MoveScreenShader(use, 1);
+                g.Tooltip("Run later");
+                g.SameLine();
+                if (g.IconButton(IconKind.Refresh, "reset") && shader != null)
+                    foreach (var param in shader.Params) use.Reset(param.Name);
+                g.Tooltip("Back to the shader's default settings");
+                g.SameLine();
+                if (g.IconButton(IconKind.Trash, "remove"))
+                {
+                    volume.RemoveScreenShader(use);
+                    g.PopId();
+                    break;
+                }
+                g.Tooltip("Remove from this scene");
+            }
+            g.PopId();
+        }
+
+        var names = library.Shaders.Where(s => s.IsScreen).Select(s => s.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+        if (names.Count > 0 && g.Combo("Add screen shader", ref _addScreenChoice, names) && _addScreenChoice >= 0)
+        {
+            volume.AddScreenShader(names[_addScreenChoice]);
+            _addScreenChoice = -1;
+        }
+    }
+
+    private void DrawScreenParam(ScreenShaderUse use, ShaderParam param)
+    {
+        var g = G;
+        var value = use.Get(param);
+        string name = param.Name;
+        switch (param.Kind)
+        {
+            case ShaderParamKind.Float when param.Range is { } range:
+                g.Slider(name, value.X, range.X, range.Y, v => use.Set(name, v));
+                break;
+            case ShaderParamKind.Float:
+                g.Drag(name, value.X, 0.02f, v => use.Set(name, v));
+                break;
+            case ShaderParamKind.Bool:
+                g.Check(name, value.X > 0.5f, v => use.Set(name, v));
+                break;
+            case ShaderParamKind.Color:
+                g.Rgb(name, new Color4(value.X, value.Y, value.Z, 1f), c => use.Set(name, c));
+                break;
+            case ShaderParamKind.Vec2:
+            {
+                var v2 = new Vector2(value.X, value.Y);
+                if (g.DragVector2(name, ref v2, 0.02f)) use.Set(name, v2);
+                break;
+            }
+            case ShaderParamKind.Texture:
+            {
+                string path = use.GetTexture(param);
+                if (g.InputText(name, ref path, "Assets/Textures/...png")) use.SetTexture(name, path.Trim());
+                if (path.Length > 0 && !File.Exists(ModelCache.ResolvePath(path))) g.TextStatus("File not found: white is used.", error: true);
+                break;
+            }
+            default:
+                g.Drag3(name, new Vector3(value.X, value.Y, value.Z), 0.02f, v => use.Set(name, v));
+                break;
         }
     }
 

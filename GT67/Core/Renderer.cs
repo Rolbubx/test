@@ -138,7 +138,7 @@ public sealed class Renderer : IDisposable
         _rippleMap = Texture.FromPixels(WaterNoise.NormalMap(512, 7), 512, 512, "water ripples", srgb: false);
         _rippleMap.SetMaxAnisotropy(16f);   // ripples stay sharp at grazing angles instead of blurring into mush
         Shadow = new ShadowMap(4096);
-        Post = new PostProcess(shaderDirectory);
+        Post = new PostProcess(shaderDirectory) { ExtraEffects = ScreenPasses };
         _occlusion = new OcclusionCuller();
 
         _width = Math.Max(1, width);
@@ -645,6 +645,36 @@ public sealed class Renderer : IDisposable
         DrawCalls += obj.Model.Parts.Count;
     }
 
+    // ---- screen shaders (the scene's Volume) -------------------------------------------------------
+
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<ScreenShaderUse, ScreenShaderPass> _screenPasses = new();
+    private readonly List<PostEffect> _screenRun = new();
+
+    /// <summary>The scene's enabled screen shaders that compiled, as steps of the post-processing chain.</summary>
+    private IReadOnlyList<PostEffect> ScreenPasses(Scene scene)
+    {
+        _screenRun.Clear();
+        foreach (var use in scene.Volume.ScreenShaders)
+        {
+            if (!use.Enabled || Custom.Get(use.Name) is not { IsScreen: true, Program: not null } shader) continue;
+            var pass = _screenPasses.GetValue(use, _ => new ScreenShaderPass(ShaderTexture));
+            pass.Source = shader;
+            pass.Use = use;
+            _screenRun.Add(pass);
+        }
+        return _screenRun;
+    }
+
+    /// <summary>The PS1-style vertex snapping the scene's screen shaders ask for (the finest grid wins; 0 = off).</summary>
+    private float VertexSnap(Scene scene)
+    {
+        float snap = 0f;
+        foreach (var use in scene.Volume.ScreenShaders)
+            if (use.Enabled && Custom.Get(use.Name) is { IsScreen: true, VertexSnap: > 0f } shader)
+                snap = snap == 0f ? shader.VertexSnap : MathF.Max(snap, shader.VertexSnap);
+        return snap;
+    }
+
     /// <summary>Texture units from here on hold the <c>texture</c> params of custom shaders (lower ones are the engine's).</summary>
     private const int FirstShaderTextureUnit = 8;
 
@@ -767,6 +797,7 @@ public sealed class Renderer : IDisposable
         shader.SetFloat("uRainAmount", scene.RainAmount);
         shader.SetFloat("uWeatherTime", scene.WeatherTime);
         shader.SetVector2("uScreenSize", new Vector2(_width, _height));
+        shader.SetFloat("uVertexSnap", VertexSnap(scene));
 
         // Caustics: what lies under the water gets the dancing light the waves focus onto it.
         int caustics = 0;

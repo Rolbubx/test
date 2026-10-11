@@ -38,6 +38,9 @@ public sealed class PostProcess : IDisposable
 
     public IReadOnlyList<PostEffect> Effects => _effects;
 
+    /// <summary>Set by the renderer: the scene's screen shaders, run after the built-in effects of their stage.</summary>
+    internal Func<Scene, IReadOnlyList<PostEffect>>? ExtraEffects { get; set; }
+
     public PostProcess(string shaderDirectory) => _context = new PostContext(shaderDirectory, _quad);
 
     // ---- effect management -----------------------------------------------------------------------
@@ -150,6 +153,8 @@ public sealed class PostProcess : IDisposable
             if (!effect.Enabled || !effect.ShouldRun(_context)) continue;
             (effect.Stage == PostStage.Hdr ? _hdrRun : _ldrRun).Add(effect);
         }
+        if (ExtraEffects?.Invoke(scene) is { } extra)
+            foreach (var effect in extra) (effect.Stage == PostStage.Hdr ? _hdrRun : _ldrRun).Add(effect);
 
         int texture = sceneTexture;
         int pingPong = 0;

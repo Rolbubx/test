@@ -172,7 +172,11 @@ public sealed partial class MapEditor
                 g.SameLine();
                 g.InputTextBare("##newshader", ref _newShaderName, "Name", 150f);
                 g.SameLine();
-                if (g.IconTextButton(IconKind.Plus, "New shader", 0f, ButtonStyle.Primary)) CreateShader();
+                if (g.IconTextButton(IconKind.Plus, "New shader", 0f, ButtonStyle.Primary)) CreateShader(screen: false);
+                g.Tooltip("A shader for objects: pick it in an object's Inspector > Shader.");
+                g.SameLine();
+                if (g.IconTextButton(IconKind.Camera, "New screen shader")) CreateShader(screen: true);
+                g.Tooltip("A shader for the whole picture (like PS1 or CRT): add it to a scene's Volume.");
                 break;
 
             case ProjectFolder.Models:
@@ -196,7 +200,7 @@ public sealed partial class MapEditor
         ProjectFolder.Scripts => Scripts.Files.Where(f => !Path.GetFileName(f).StartsWith('_'))
             .Select(f => new PaletteItem(Path.GetFileNameWithoutExtension(f), "script", null, f)).ToList(),
         ProjectFolder.Shaders => _window.Renderer.Custom.Shaders.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(s => new PaletteItem(s.Name, "shader", null, s.File)).ToList(),
+            .Select(s => new PaletteItem(s.Name, s.IsScreen ? "screenshader" : "shader", null, s.File)).ToList(),
         _ => _soundFiles.Select(f => new PaletteItem(Path.GetFileNameWithoutExtension(f), "sound", null, f)).ToList(),
     };
 
@@ -207,6 +211,7 @@ public sealed partial class MapEditor
         "prefab" => IconKind.Copy,
         "script" => IconKind.Script,
         "shader" => IconKind.Image,
+        "screenshader" => IconKind.Camera,
         "sound" => IconKind.Sound,
         _ => IconKind.File,
     };
@@ -215,6 +220,7 @@ public sealed partial class MapEditor
     {
         "script" => $"{item.Name}.cs\nDouble-click to edit. Drag onto an object (in the scene or the Hierarchy) to attach it.",
         "shader" => $"{item.Name}.shader\nDouble-click to edit. Pick it for an object in the Inspector > Shader.",
+        "screenshader" => $"{item.Name}.shader (screen shader)\nDrag it into the view to add it to this scene's Volume. Double-click to edit.",
         "sound" => $"{Path.GetFileName(item.Path)}\nDrag into the scene to place it. Double-click to add it in front of the camera.",
         "prefab" => $"Prefab '{item.Name}'\nDrag into the scene, or double-click to add it in front of the camera.\nScripts spawn it with Game.SpawnPrefab(\"{item.Name}\", position).",
         _ => $"{item.Name}\nDrag into the scene, or double-click to add it in front of the camera.",
@@ -238,6 +244,7 @@ public sealed partial class MapEditor
         {
             case "script":
             case "shader":
+            case "screenshader":
                 OpenInEditor(item.Path!);
                 break;
             case "sound":
@@ -281,7 +288,7 @@ public sealed partial class MapEditor
         CompileScripts(announceSuccess: true);
     }
 
-    private void CreateShader()
+    private void CreateShader(bool screen)
     {
         string folder = Path.Combine(Paths!.Root, "Shaders", "Custom");
         string name = new string(_newShaderName.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
@@ -291,7 +298,7 @@ public sealed partial class MapEditor
         else
         {
             Directory.CreateDirectory(folder);
-            File.WriteAllText(path, ShaderLibrary.Template(name));
+            File.WriteAllText(path, screen ? ShaderLibrary.ScreenTemplate(name) : ShaderLibrary.Template(name));
             _window.Renderer.Custom.AddDirectory(folder, first: true);
             Say($"Created {name}{ShaderLibrary.Extension}.");
             _projectSelection = name;
@@ -317,6 +324,11 @@ public sealed partial class MapEditor
                 break;
             case "shader":
                 Say("Shaders are picked per object in the Inspector > Shader.", error: true);
+                break;
+            case "screenshader":
+                Scene.Volume.AddScreenShader(item.Name);
+                SelectVolume();
+                Say($"Added the screen shader {item.Name} to the Volume of '{Scene.Name}'.");
                 break;
             case "sound":
                 ImportSound(item.Path!, _window.GetMouseWorldPosition());

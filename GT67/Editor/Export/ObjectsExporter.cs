@@ -112,15 +112,7 @@ public static class ObjectsExporter
         var material = obj.Material;
         if (material.CustomShader.Length == 0) return;
 
-        string? file = new[]
-            {
-                Path.Combine(context.Paths.Root, "Shaders", "Custom"),
-                Path.Combine(AppContext.BaseDirectory, "Shaders", "Custom"),
-                Path.Combine(AppContext.BaseDirectory, "Assets", "Game", "Shaders"),
-            }
-            .Select(folder => Path.Combine(folder, material.CustomShader + ShaderLibrary.Extension))
-            .FirstOrDefault(File.Exists);
-        if (file == null || context.Assets.ShipFile(file, "Shaders") == null)
+        if (!ShipShader(context, material.CustomShader))
             context.Warnings.Add($"'{obj.Name}': shader file '{material.CustomShader}{ShaderLibrary.Extension}' not found, so the game draws it normally.");
 
         w.Line($"{v}.SetShader({Str(material.CustomShader)});");
@@ -133,6 +125,20 @@ public static class ObjectsExporter
             if (shipped != null) w.Line($"{v}.SetShaderTexture({Str(name)}, {Str(shipped)});");
             else context.Warnings.Add($"'{obj.Name}': shader texture '{path}' not found, so it was left out.");
         }
+    }
+
+    /// <summary>Ships a .shader file into Assets/Shaders, where the game's shader library finds it. False if it is not found.</summary>
+    internal static bool ShipShader(ExportContext context, string name)
+    {
+        string? file = new[]
+            {
+                Path.Combine(context.Paths.Root, "Shaders", "Custom"),
+                Path.Combine(AppContext.BaseDirectory, "Shaders", "Custom"),
+                Path.Combine(AppContext.BaseDirectory, "Assets", "Game", "Shaders"),
+            }
+            .Select(folder => Path.Combine(folder, name + ShaderLibrary.Extension))
+            .FirstOrDefault(File.Exists);
+        return file != null && context.Assets.ShipFile(file, "Shaders") != null;
     }
 
     private static string MeshExpression(ExportContext context, GameObject obj)

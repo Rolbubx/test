@@ -32,7 +32,24 @@ public sealed class CustomShader
     internal int SurfaceLine { get; set; } = 1;
     internal string? VertexBody { get; set; }
     internal int VertexLine { get; set; } = 1;
+    internal string? ScreenBody { get; set; }
+    internal int ScreenLine { get; set; } = 1;
     internal DateTime LastWrite { get; set; }
+
+    /// <summary>
+    /// True for a screen shader (a <c>screen { ... }</c> block): it changes the whole picture, not one object, and is
+    /// added to a scene's Volume (<see cref="PostProfile.AddScreenShader"/>) instead of to a material.
+    /// </summary>
+    public bool IsScreen => ScreenBody != null;
+
+    /// <summary>Screen shaders: before tone mapping on linear HDR colour (<c>stage hdr</c>) or after it on display colour (the default).</summary>
+    public PostStage Stage { get; internal set; } = PostStage.Ldr;
+
+    /// <summary>
+    /// Screen shaders: <c>vertexSnap N</c> rounds every vertex of the scene to a grid N rows high on the screen while
+    /// the shader is on, so geometry wobbles like on the first PlayStation (0 = off).
+    /// </summary>
+    public float VertexSnap { get; internal set; }
 
     /// <summary>The compiled program, or null while the file has errors.</summary>
     public Shader? Program { get; internal set; }
@@ -162,10 +179,19 @@ public sealed class ShaderLibrary : IDisposable
         {
             try
             {
-                string vert = GenerateVertex(shader, System.IO.File.ReadAllText(Path.Combine(_engineDirectory, "lit.vert")));
-                string frag = Generate(shader, System.IO.File.ReadAllText(Path.Combine(_engineDirectory, "lit.frag")));
-                shader.Program = Shader.FromSource("custom:" + name, vert, frag);
-                Log.Info($"Custom shader '{name}' compiled.");
+                if (shader.IsScreen)
+                {
+                    string postVert = System.IO.File.ReadAllText(Path.Combine(_engineDirectory, "post.vert"));
+                    shader.Program = Shader.FromSource("screen:" + name, postVert, GenerateScreen(shader));
+                    Log.Info($"Screen shader '{name}' compiled.");
+                }
+                else
+                {
+                    string vert = GenerateVertex(shader, System.IO.File.ReadAllText(Path.Combine(_engineDirectory, "lit.vert")));
+                    string frag = Generate(shader, System.IO.File.ReadAllText(Path.Combine(_engineDirectory, "lit.frag")));
+                    shader.Program = Shader.FromSource("custom:" + name, vert, frag);
+                    Log.Info($"Custom shader '{name}' compiled.");
+                }
             }
             catch (InvalidOperationException)
             {
@@ -217,13 +243,36 @@ public sealed class ShaderLibrary : IDisposable
                 continue;
             }
 
-            string? block = IsBlock(code, "surface") ? "surface" : IsBlock(code, "vertex") ? "vertex" : null;
+            // Screen shaders: when they run, and the PS1-style vertex snapping
+            var words = code.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (words[0] == "stage")
+            {
+                if (words.Length != 2 || words[1] is not ("hdr" or "ldr"))
+                {
+                    error = $"line {i + 1}: write 'stage ldr' (after tone mapping, the default) or 'stage hdr' (before it).";
+                    return shader;
+                }
+                shader.Stage = words[1] == "hdr" ? PostStage.Hdr : PostStage.Ldr;
+                continue;
+            }
+            if (words[0] == "vertexSnap")
+            {
+                if (words.Length != 2 || !TryNumber(words[1], out float snap) || snap < 0f)
+                {
+                    error = $"line {i + 1}: write 'vertexSnap 120' (the height of the grid vertices snap to; 0 = off).";
+                    return shader;
+                }
+                shader.VertexSnap = snap;
+                continue;
+            }
+
+            string? block = IsBlock(code, "surface") ? "surface" : IsBlock(code, "vertex") ? "vertex" : IsBlock(code, "screen") ? "screen" : null;
             if (block == null)
             {
-                error = $"line {i + 1}: expected 'param ...', 'vertex {{ ... }}' or 'surface {{ ... }}', found '{code}'.";
+                error = $"line {i + 1}: expected 'param ...', 'vertex {{ ... }}', 'surface {{ ... }}' or 'screen {{ ... }}', found '{code}'.";
                 return shader;
             }
-            if ((block == "surface" && hasSurface) || (block == "vertex" && shader.VertexBody != null))
+            if ((block == "surface" && hasSurface) || (block == "vertex" && shader.VertexBody != null) || (block == "screen" && shader.ScreenBody != null))
             {
                 error = $"line {i + 1}: there is already a '{block}' block.";
                 return shader;
@@ -239,6 +288,11 @@ public sealed class ShaderLibrary : IDisposable
                 shader.SurfaceLine = bodyLine;
                 hasSurface = true;
             }
+            else if (block == "screen")
+            {
+                shader.ScreenBody = body;
+                shader.ScreenLine = bodyLine;
+            }
             else
             {
                 shader.VertexBody = body;
@@ -247,7 +301,10 @@ public sealed class ShaderLibrary : IDisposable
             i = lastLine;
         }
 
-        if (!hasSurface && shader.VertexBody == null) error = "there is no 'surface { ... }' (or 'vertex { ... }') block.";
+        if (shader.ScreenBody != null && (hasSurface || shader.VertexBody != null))
+            error = "a screen shader ('screen { ... }') is for the whole picture: it cannot also have 'surface' or 'vertex' blocks.";
+        else if (!hasSurface && shader.VertexBody == null && shader.ScreenBody == null)
+            error = "there is no 'surface { ... }', 'vertex { ... }' or 'screen { ... }' block.";
         return shader;
     }
 
@@ -394,6 +451,7 @@ public sealed class ShaderLibrary : IDisposable
         "objectPosition", "view", "time", "base", "vertexColor", "screenUV", "sunDirection", "sunColor", "wetness",
         "hash", "hash2", "noise", "fbm", "voronoi", "remap", "saturate", "rotate", "hsv", "rgbToHsv", "fresnel",
         "stripes", "checker", "circle", "triplanar", "bump",
+        "color", "resolution", "depth", "sampleScene", "sampleDepth", "dither",
     };
 
     // ---- generated GLSL ----------------------------------------------------------------------------
@@ -580,6 +638,84 @@ public sealed class ShaderLibrary : IDisposable
             .Replace("//@USER_VERTEX_DECLARATIONS@", declarations.ToString())
             .Replace("//@USER_VERTEX_CALL@", call);
     }
+
+    /// <summary>
+    /// Builds the fragment shader of a screen shader: it runs once for every pixel of the picture, with the scene's
+    /// colour there in <c>color</c> (read it and change it), plus helpers to read the picture and the depth elsewhere.
+    /// </summary>
+    public static string GenerateScreen(CustomShader shader)
+    {
+        var s = new StringBuilder();
+        s.AppendLine("in vec2 vUV;");
+        s.AppendLine("out vec4 FragColor;");
+        s.AppendLine("uniform sampler2D uInput;");
+        s.AppendLine("uniform sampler2D uDepthTexture;");
+        s.AppendLine("uniform vec2 uResolution;");
+        s.AppendLine("uniform float uTime;");
+        s.AppendLine("uniform float uNear;");
+        s.AppendLine("uniform float uFar;");
+        s.Append(Uniforms(shader));
+        s.AppendLine("float fwidthSafe(float x) { return fwidth(x); }");
+        s.AppendLine(Library);
+        s.AppendLine(ScreenLibrary);
+        s.AppendLine("void userScreen(inout vec3 color, vec2 uv, vec2 resolution, float time, float depth)");
+        s.AppendLine("{");
+        s.AppendLine("#line " + shader.ScreenLine);
+        s.AppendLine(shader.ScreenBody);
+        s.AppendLine("}");
+        s.AppendLine("void main()");
+        s.AppendLine("{");
+        s.AppendLine("    vec3 color = texture(uInput, vUV).rgb;");
+        s.AppendLine("    userScreen(color, vUV, uResolution, uTime, sampleDepth(vUV));");
+        s.AppendLine("    FragColor = vec4(color, 1.0);");
+        s.AppendLine("}");
+        return s.ToString();
+    }
+
+    /// <summary>Helpers that only screen shaders have.</summary>
+    private const string ScreenLibrary = """
+        // sampleScene(uv): the picture's colour anywhere on the screen (uv 0..1). sampleDepth(uv): the distance in
+        // metres from the camera to what is seen there (the far plane for the sky).
+        vec3 sampleScene(vec2 p) { return texture(uInput, clamp(p, vec2(0.0), vec2(1.0))).rgb; }
+        float sampleDepth(vec2 p)
+        {
+            float d = texture(uDepthTexture, clamp(p, vec2(0.0), vec2(1.0))).r;
+            if (d >= 1.0) return uFar;
+            float z = d * 2.0 - 1.0;
+            return 2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear));
+        }
+
+        // dither(pixel): the 4x4 ordered (Bayer) dither pattern, -0.5..0.5, for a whole pixel position (uv * resolution).
+        float dither(vec2 pixel)
+        {
+            int x = int(mod(pixel.x, 4.0)), y = int(mod(pixel.y, 4.0));
+            int index = x + y * 4;
+            int bayer[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5);
+            return (float(bayer[index]) + 0.5) / 16.0 - 0.5;
+        }
+        """;
+
+    /// <summary>The text of a new screen shader file.</summary>
+    public static string ScreenTemplate(string name) => $$"""
+        // {{name}}: a screen shader. It changes the whole picture of the game (add it to a scene's Volume in the
+        // editor's Hierarchy). Save the file and the engine reloads it by itself.
+        // 'param' lines become settings in the Volume: float (add 'range 0 5' for a slider), color, vec2, vec3, bool, texture.
+        param float Strength = 1.0 range 0 1
+        param color Tint = (1.0, 0.9, 0.75)
+        param float Lines = 240.0 range 20 1000
+
+        // Optional: 'stage hdr' runs before tone mapping (on linear light) instead of after it.
+        // Optional: 'vertexSnap 120' makes every vertex snap to a coarse grid, like the first PlayStation.
+
+        // The picture: read and change 'color' (this pixel). You can read uv (0..1), resolution (pixels), time and
+        // depth (metres to what is seen here), and call sampleScene(uv), sampleDepth(uv) and dither(pixel), plus the
+        // library: noise, fbm, voronoi, hash, remap, saturate, rotate, hsv, rgbToHsv, stripes, checker, circle.
+        screen
+        {
+            vec3 look = color * Tint * (0.85 + 0.15 * stripes(uv.y, Lines));
+            color = mix(color, look, Strength);
+        }
+        """;
 
     /// <summary>The text of a new shader file.</summary>
     public static string Template(string name) => $$"""

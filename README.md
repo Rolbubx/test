@@ -286,6 +286,35 @@ Examples in `Shaders/Custom`: **Pulse** (glow), **Dissolve** (noise + cut-out + 
 plants and flags, a vertex block), **Hologram** (fresnel rim, screen-space scanlines, a texture param). Compile ships the
 `.shader` files and their textures with the game.
 
+### Screen shaders (the whole picture: PS1, CRT...)
+
+A `.shader` file with a `screen` block changes the whole picture instead of one object. Add it to a scene's **Volume**
+(Hierarchy > Volume > *Add screen shader*, or drag its tile from Project > Shaders into the view); each scene has its own
+list, run in order after the built-in effects, with the `param` settings in the Inspector. **New screen shader** in
+Project > Shaders starts one from a template.
+
+```glsl
+// Shaders/Custom/Posterize.shader
+param float Levels = 6.0 range 2 32
+// stage hdr             // optional: run before tone mapping, on linear light (the default runs after it)
+// vertexSnap 160        // optional: vertices snap to a 160-row screen grid while it is on (the PS1 wobble)
+
+screen
+{
+    color = floor(color * Levels + 0.5) / Levels;
+}
+```
+
+The block reads and changes `color` (this pixel), reads `uv` (0..1), `resolution` (pixels), `time` and `depth` (metres to
+what is seen there), and can call `sampleScene(uv)`, `sampleDepth(uv)`, `dither(pixel)` (4x4 Bayer, -0.5..0.5) and the
+library above. Bundled: **PS1** (240p big pixels, 15-bit colour with dithering, vertex wobble, optional short fog) and
+**CRT** (curved glass, scanlines, RGB mask, colour bleed). From a script:
+
+```csharp
+Game.Volume.AddScreenShader("PS1");
+Game.Volume.GetScreenShader("CRT")?.Set("Curvature", 0.2f);
+```
+
 ## Prefabs
 
 A prefab is a reusable object saved to `Prefabs/<Name>.prefab` (JSON): the object and its children, with their mesh,
