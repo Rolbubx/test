@@ -8,6 +8,11 @@ param float Bleed = 1.5 range 0 4               // colour fringes, in pixels
 param float Vignette = 0.4 range 0 1
 param float Flicker = 0.02 range 0 0.1
 
+param float FogStart = 10.0 range 0 100
+param float FogEnd = 100.0 range 1 400
+param float FogAmount = 0.5 range 0 1
+param color FogColor = (0.5, 0.5, 0.5)
+
 screen
 {
     // Curved glass: push the picture outwards towards the corners; outside it is the dark bezel
@@ -22,6 +27,10 @@ screen
 
     float px = Bleed / resolution.x;
     vec3 c = vec3(sampleScene(q + vec2(px, 0.0)).r, sampleScene(q).g, sampleScene(q - vec2(px, 0.0)).b);
+
+    // Fog: by the distance of what is seen at q (the curved position), before the TV's own look goes on top
+    float fog = smoothstep(FogStart, max(FogEnd, FogStart + 0.01), sampleDepth(q)) * FogAmount;
+    c = mix(c, FogColor, fog);
 
     float line = 0.5 + 0.5 * cos(q.y * LineCount * 6.2831853);
     c *= 1.0 - Scanlines * (1.0 - line);
