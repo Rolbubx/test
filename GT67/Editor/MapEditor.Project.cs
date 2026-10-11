@@ -172,11 +172,14 @@ public sealed partial class MapEditor
                 g.SameLine();
                 g.InputTextBare("##newshader", ref _newShaderName, "Name", 150f);
                 g.SameLine();
-                if (g.IconTextButton(IconKind.Plus, "New shader", 0f, ButtonStyle.Primary)) CreateShader(screen: false);
+                if (g.IconTextButton(IconKind.Plus, "New shader", 0f, ButtonStyle.Primary)) CreateShader(ShaderKind.Object);
                 g.Tooltip("A shader for objects: pick it in an object's Inspector > Shader.");
                 g.SameLine();
-                if (g.IconTextButton(IconKind.Camera, "New screen shader")) CreateShader(screen: true);
+                if (g.IconTextButton(IconKind.Camera, "New screen shader")) CreateShader(ShaderKind.Screen);
                 g.Tooltip("A shader for the whole picture (like PS1 or CRT): add it to a scene's Volume.");
+                g.SameLine();
+                if (g.IconTextButton(IconKind.Cloud, "New sky shader")) CreateShader(ShaderKind.Sky);
+                g.Tooltip("A shader for the sky (and your own sun): pick it in Environment > Sky.");
                 break;
 
             case ProjectFolder.Models:
@@ -200,7 +203,7 @@ public sealed partial class MapEditor
         ProjectFolder.Scripts => Scripts.Files.Where(f => !Path.GetFileName(f).StartsWith('_'))
             .Select(f => new PaletteItem(Path.GetFileNameWithoutExtension(f), "script", null, f)).ToList(),
         ProjectFolder.Shaders => _window.Renderer.Custom.Shaders.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(s => new PaletteItem(s.Name, s.IsScreen ? "screenshader" : "shader", null, s.File)).ToList(),
+            .Select(s => new PaletteItem(s.Name, s.IsSky ? "skyshader" : s.IsScreen ? "screenshader" : "shader", null, s.File)).ToList(),
         _ => _soundFiles.Select(f => new PaletteItem(Path.GetFileNameWithoutExtension(f), "sound", null, f)).ToList(),
     };
 
@@ -212,6 +215,7 @@ public sealed partial class MapEditor
         "script" => IconKind.Script,
         "shader" => IconKind.Image,
         "screenshader" => IconKind.Camera,
+        "skyshader" => IconKind.Cloud,
         "sound" => IconKind.Sound,
         _ => IconKind.File,
     };
@@ -221,6 +225,7 @@ public sealed partial class MapEditor
         "script" => $"{item.Name}.cs\nDouble-click to edit. Drag onto an object (in the scene or the Hierarchy) to attach it.",
         "shader" => $"{item.Name}.shader\nDouble-click to edit. Pick it for an object in the Inspector > Shader.",
         "screenshader" => $"{item.Name}.shader (screen shader)\nDrag it into the view to add it to this scene's Volume. Double-click to edit.",
+        "skyshader" => $"{item.Name}.shader (sky shader)\nDrag it into the view to use it for this scene's sky. Double-click to edit.",
         "sound" => $"{Path.GetFileName(item.Path)}\nDrag into the scene to place it. Double-click to add it in front of the camera.",
         "prefab" => $"Prefab '{item.Name}'\nDrag into the scene, or double-click to add it in front of the camera.\nScripts spawn it with Game.SpawnPrefab(\"{item.Name}\", position).",
         _ => $"{item.Name}\nDrag into the scene, or double-click to add it in front of the camera.",
@@ -245,6 +250,7 @@ public sealed partial class MapEditor
             case "script":
             case "shader":
             case "screenshader":
+            case "skyshader":
                 OpenInEditor(item.Path!);
                 break;
             case "sound":
@@ -288,7 +294,9 @@ public sealed partial class MapEditor
         CompileScripts(announceSuccess: true);
     }
 
-    private void CreateShader(bool screen)
+    private enum ShaderKind { Object, Screen, Sky }
+
+    private void CreateShader(ShaderKind kind)
     {
         string folder = Path.Combine(Paths!.Root, "Shaders", "Custom");
         string name = new string(_newShaderName.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
@@ -298,7 +306,12 @@ public sealed partial class MapEditor
         else
         {
             Directory.CreateDirectory(folder);
-            File.WriteAllText(path, screen ? ShaderLibrary.ScreenTemplate(name) : ShaderLibrary.Template(name));
+            File.WriteAllText(path, kind switch
+            {
+                ShaderKind.Screen => ShaderLibrary.ScreenTemplate(name),
+                ShaderKind.Sky => ShaderLibrary.SkyTemplate(name),
+                _ => ShaderLibrary.Template(name),
+            });
             _window.Renderer.Custom.AddDirectory(folder, first: true);
             Say($"Created {name}{ShaderLibrary.Extension}.");
             _projectSelection = name;
@@ -324,6 +337,12 @@ public sealed partial class MapEditor
                 break;
             case "shader":
                 Say("Shaders are picked per object in the Inspector > Shader.", error: true);
+                break;
+            case "skyshader":
+                Scene.Skybox ??= new Skybox(new PhysicalSky { Clouds = new CloudLayer() });
+                Scene.Skybox.CustomShader = new ScreenShaderUse(item.Name);
+                SelectEnvironment();
+                Say($"The sky of '{Scene.Name}' now uses the sky shader {item.Name} (Environment > Sky).");
                 break;
             case "screenshader":
                 Scene.Volume.AddScreenShader(item.Name);

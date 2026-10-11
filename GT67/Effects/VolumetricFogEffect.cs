@@ -63,7 +63,7 @@ public sealed class VolumetricFogEffect : SinglePassEffect
         shader.SetVector3("uSunDir", sunLit ? sun!.DirectionToSun : Vector3.UnitY);
         shader.SetVector3("uSunColor", sunLit ? sun!.LightColor * scene.LightDim * 0.6f : Vector3.Zero);
 
-        var clouds = scene.Skybox?.Physical?.Clouds;
+        var clouds = scene.Skybox?.ActivePhysical?.Clouds;
         shader.SetVector2("uWind", clouds != null ? clouds.WindDirection * clouds.WindSpeed * 0.1f : new Vector2(1f, 0.25f));
 
         // Sun shadow map (unit 2) and the cloud deck (unit 5)

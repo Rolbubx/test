@@ -76,6 +76,9 @@ public sealed class Sun : Light
     /// <summary>Brightness of the sun disc in the physical sky (feeds bloom and sun rays).</summary>
     public float DiscBrightness { get; set; } = 35f;
 
+    /// <summary>False hides the disc in the sky but keeps the light (and shadows). <see cref="Light.Enabled"/> turns off both.</summary>
+    public bool ShowDisc { get; set; } = true;
+
     // ---- lighting --------------------------------------------------------------------------------
 
     /// <summary>
@@ -117,7 +120,7 @@ public sealed class Sun : Light
             TimeOfDay -= 24f * MathF.Floor(TimeOfDay / 24f);
         }
 
-        if (AtmosphericLighting && scene.Skybox?.Physical is { } sky)
+        if (AtmosphericLighting && scene.Skybox?.Physical is { Enabled: true } sky)
             sky.LightScene(scene, this);
         else
             AtmosphericTint = Vector3.One;

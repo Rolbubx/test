@@ -80,7 +80,7 @@ public sealed class SunRaysEffect : PostEffect
         _mask.SetFloat("uSunSize", Math.Clamp(SunSize, 0.005f, 0.1f));
         _mask.SetFloat("uDiscBrightness", Math.Clamp(DiscBrightness, 0f, 20f));
         _mask.SetInt("uCloudShape", 5);
-        if (context.Scene.Skybox?.Physical?.Clouds is { } clouds)
+        if (context.Scene.Skybox?.ActivePhysical?.Clouds is { } clouds)
         {
             clouds.SetOcclusionUniforms(_mask);
             var camera = context.Camera;

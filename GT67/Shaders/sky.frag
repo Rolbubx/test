@@ -91,7 +91,7 @@ vec3 starField(vec3 dir)
 
 const float CLOUD_SIGMA = 0.006;   // extinction per metre at density 1
 
-float remap(float v, float a, float b, float c, float d)
+float remapRange(float v, float a, float b, float c, float d)
 {
     return c + (v - a) / (b - a) * (d - c);
 }
@@ -151,7 +151,7 @@ float cloudDensity(vec3 p, float lod, bool detail)
     if (coverage <= 0.001) return overcast * uCloudDensity;
 
     float density = shape * profile;
-    density = remap(density, 1.0 - coverage, 1.0, 0.0, 1.0);
+    density = remapRange(density, 1.0 - coverage, 1.0, 0.0, 1.0);
     if (density <= 0.0) return overcast * uCloudDensity;
 
     if (detail)
@@ -160,7 +160,7 @@ float cloudDensity(vec3 p, float lod, bool detail)
         float detailFbm = dn.r * 0.625 + dn.g * 0.25 + dn.b * 0.125;
         // Wispy at the top, billowy at the bottom
         float erosion = mix(detailFbm, 1.0 - detailFbm, clamp(h * 4.0, 0.0, 1.0)) * uCloudDetailStrength;
-        density = remap(density, erosion, 1.0, 0.0, 1.0);
+        density = remapRange(density, erosion, 1.0, 0.0, 1.0);
     }
     return clamp(max(density, overcast), 0.0, 1.0) * uCloudDensity;
 }
@@ -333,8 +333,14 @@ vec3 baseSky(vec3 dir)
     if (uAtmosphere) return atmosphere(dir);
     if (uHasCubemap) return texture(uCubemap, dir).rgb;
     float t = dir.y;
-    return t > 0.0 ? mix(uHorizon, uTop, pow(t, 0.6)) : mix(uHorizon, uBottom, pow(-t, 0.5));
+    vec3 gradient = t > 0.0 ? mix(uHorizon, uTop, pow(t, 0.6)) : mix(uHorizon, uBottom, pow(-t, 0.5));
+    // The sun's disc (when the sun shows one), as the physical sky would draw it without the air's reddening
+    float disc = smoothstep(cos(uSunRadius * 1.15), cos(uSunRadius * 0.85), dot(dir, uSunDir));
+    return gradient + disc * uSunDiscBrightness * 0.5;
 }
+
+// Sky shaders put their function here
+//@USER_SKY_DECLARATIONS@
 
 void main()
 {
@@ -358,6 +364,9 @@ void main()
     {
         color = baseSky(dir);
     }
+
+    // Sky shaders (.shader files with a 'sky' block) change or replace the sky here; storm and fog still cover it.
+    //@USER_SKY_CALL@
 
     if (uAtmosphere) color = applyStorm(color, dir);
     FragColor = vec4(applyFog(color, dir), 1.0);

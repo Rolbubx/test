@@ -35,6 +35,9 @@ internal sealed class ScreenShaderPass : PostEffect
         program.SetFloat("uFar", context.Camera.Far);
         program.SetMatrix4("uInvViewProjection", (context.Camera.ViewMatrix * context.Camera.ProjectionMatrix).Inverted());
         program.SetVector3("uCameraPosition", context.Camera.Position);
+        var sun = context.Scene.Sun;
+        program.SetVector3("uSunDirection", sun?.DirectionToSun ?? Vector3.UnitY);
+        program.SetVector3("uSunColor", sun is { IsEmitting: true } ? sun.LightColor * context.Scene.LightDim : Vector3.Zero);
 
         int unit = FirstTextureUnit;
         foreach (var param in Source.Params)

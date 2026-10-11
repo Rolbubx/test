@@ -286,9 +286,10 @@ public sealed class Renderer : IDisposable
         if (SkyboxEnabled && scene.Skybox != null)
         {
             SetPolygonMode(false);
-            SetFogUniforms(Sky, scene);
-            SetSeaUniforms(scene, camera);
-            scene.Skybox.Draw(camera, Sky, scene.Sun);
+            var skyProgram = SkyProgram(scene, camera.Position);
+            SetFogUniforms(skyProgram, scene);
+            SetSeaUniforms(scene, camera, skyProgram);
+            scene.Skybox.Draw(camera, skyProgram, scene.Sun);
             SetPolygonMode(Wireframe);
             Lit.Use();
         }
@@ -372,9 +373,10 @@ public sealed class Renderer : IDisposable
         GL.Disable(EnableCap.ClipDistance0);
         if (SkyboxEnabled && scene.Skybox != null)
         {
-            SetFogUniforms(Sky, scene);
-            Sky.SetBool("uOcean", false);   // the mirrored sky is never seen below its horizon
-            scene.Skybox.Draw(view, camera.ProjectionMatrix, camera.Position, Sky, scene.Sun);
+            var skyProgram = SkyProgram(scene, camera.Position);
+            SetFogUniforms(skyProgram, scene);
+            skyProgram.SetBool("uOcean", false);   // the mirrored sky is never seen below its horizon
+            scene.Skybox.Draw(view, camera.ProjectionMatrix, camera.Position, skyProgram, scene.Sun);
         }
         GL.FrontFace(FrontFaceDirection.Ccw);
         _inMirror = false;
@@ -524,15 +526,15 @@ public sealed class Renderer : IDisposable
     /// the deep colour, turning into a mirror of the sky at grazing angles. It meets the water geometry where that fades
     /// out, so there is no grey band between the sea and the sky.
     /// </summary>
-    private void SetSeaUniforms(Scene scene, Camera camera)
+    private static void SetSeaUniforms(Scene scene, Camera camera, Shader sky)
     {
         var sea = scene.Waters.FirstOrDefault(w => w.Enabled && w.ReachHorizon && camera.Position.Y > w.Level);
-        Sky.SetBool("uOcean", sea != null);
+        sky.SetBool("uOcean", sea != null);
         if (sea == null) return;
         var ambient = MathUtil.ToLinear(scene.AmbientColor) * scene.AmbientIntensity * scene.AmbientDim;
         var sunLight = scene.Sun is { IsEmitting: true } sun ? sun.LightColor * scene.LightDim * MathF.Max(sun.DirectionToSun.Y, 0f) * 0.35f : Vector3.Zero;
-        Sky.SetVector3("uOceanColor", MathUtil.ToLinear(sea.DeepColor) * (ambient + sunLight));
-        Sky.SetFloat("uOceanF0", sea.FresnelF0);
+        sky.SetVector3("uOceanColor", MathUtil.ToLinear(sea.DeepColor) * (ambient + sunLight));
+        sky.SetFloat("uOceanF0", sea.FresnelF0);
     }
 
     private static void SetPolygonMode(bool wireframe) =>
@@ -663,6 +665,45 @@ public sealed class Renderer : IDisposable
             _screenRun.Add(pass);
         }
         return _screenRun;
+    }
+
+    /// <summary>
+    /// The program that draws the scene's sky: its sky shader (a .shader file with a 'sky' block, given the sun and its
+    /// settings) when it has one that compiled, otherwise the engine's own.
+    /// </summary>
+    private Shader SkyProgram(Scene scene, Vector3 cameraPosition)
+    {
+        if (scene.Skybox?.CustomShader is not { Enabled: true } use ||
+            Custom.Get(use.Name) is not { IsSky: true, Program: { } program } custom) return Sky;
+
+        var sun = scene.Sun;
+        program.SetVector3("uUserSunDirection", sun?.DirectionToSun ?? Vector3.UnitY);
+        program.SetVector3("uUserSunColor", sun is { IsEmitting: true } ? sun.LightColor * scene.LightDim : Vector3.Zero);
+        program.SetFloat("uUserSunSize", (sun?.AngularRadius ?? 0.53f) * MathUtil.Deg2Rad);
+        program.SetFloat("uUserTime", scene.WeatherTime);
+        program.SetVector3("uUserCameraPosition", cameraPosition);
+
+        int unit = FirstShaderTextureUnit;
+        foreach (var param in custom.Params)
+        {
+            if (param.Kind == ShaderParamKind.Texture)
+            {
+                if (unit > LastShaderTextureUnit) continue;
+                ShaderTexture(use.GetTexture(param)).Bind(TextureUnit.Texture0 + unit);
+                program.SetInt(param.Name, unit++);
+                continue;
+            }
+            var value = use.Get(param);
+            switch (param.Kind)
+            {
+                case ShaderParamKind.Float: program.SetFloat(param.Name, value.X); break;
+                case ShaderParamKind.Bool: program.SetBool(param.Name, value.X > 0.5f); break;
+                case ShaderParamKind.Vec2: program.SetVector2(param.Name, new Vector2(value.X, value.Y)); break;
+                case ShaderParamKind.Color: program.SetVector3(param.Name, MathUtil.ToLinear(new Color4(value.X, value.Y, value.Z, 1f))); break;
+                default: program.SetVector3(param.Name, new Vector3(value.X, value.Y, value.Z)); break;
+            }
+        }
+        return program;
     }
 
     /// <summary>The PS1-style vertex snapping the scene's screen shaders ask for (the finest grid wins; 0 = off).</summary>
@@ -813,7 +854,7 @@ public sealed class Renderer : IDisposable
 
         // The sampler must point at a 3D-texture unit even when cloud shadows are off.
         shader.SetInt("uCloudShape", 5);
-        if (!_inMirror && scene.Skybox?.Physical?.Clouds is { } clouds) clouds.SetShadowUniforms(shader);   // too costly for the small mirror images
+        if (!_inMirror && scene.Skybox?.ActivePhysical?.Clouds is { } clouds) clouds.SetShadowUniforms(shader);   // too costly for the small mirror images
         else shader.SetBool("uCloudShadows", false);
 
         var sun = scene.Sun;

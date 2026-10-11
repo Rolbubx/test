@@ -59,7 +59,29 @@ public static class EnvironmentExporter
             else
             {
                 w.Line("scene.Skybox = new Skybox");
-                w.Initializer(skybox, new Skybox());
+                w.Initializer(skybox, new Skybox(), exclude: new[] { "CustomShader" });
+            }
+
+            // The gradient, drawn when the physical sky is switched off
+            if (skybox.Physical != null || skybox.Cubemap != null)
+            {
+                using var defaults = new Skybox();
+                if (skybox.TopColor != defaults.TopColor) w.Line($"scene.Skybox.TopColor = {Col(skybox.TopColor)};");
+                if (skybox.HorizonColor != defaults.HorizonColor) w.Line($"scene.Skybox.HorizonColor = {Col(skybox.HorizonColor)};");
+                if (skybox.BottomColor != defaults.BottomColor) w.Line($"scene.Skybox.BottomColor = {Col(skybox.BottomColor)};");
+            }
+
+            // A sky shader (a .shader file with a 'sky' block), shipped with its settings
+            if (skybox.CustomShader is { } use)
+            {
+                if (!ObjectsExporter.ShipShader(context, use.Name))
+                    context.Warnings.Add($"Scene '{scene.Name}': sky shader '{use.Name}.shader' not found, so the game draws the sky without it.");
+                w.Line("{");
+                w.Indent++;
+                w.Line($"var skyShader = scene.Skybox.CustomShader = new ScreenShaderUse({Str(use.Name)});");
+                PostProcessingExporter.WriteShaderSettings(context, w, "skyShader", use);
+                w.Indent--;
+                w.Line("}");
             }
         }
 

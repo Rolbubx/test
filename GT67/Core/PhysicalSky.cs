@@ -14,6 +14,12 @@ public sealed class PhysicalSky : IDisposable
     private const int LightSteps = 8;
     private Vector3 _ambientLight = new(0.2f, 0.25f, 0.4f);
 
+    /// <summary>
+    /// False switches the atmosphere off (with its clouds, the sun's tint and the automatic ambient light): the sky is
+    /// then the skybox's gradient (<see cref="Skybox.TopColor"/>...) or a sky shader, and the ambient light is set by hand.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
     public float PlanetRadius { get; set; } = 6360f;
     public float AtmosphereHeight { get; set; } = 60f;
 
@@ -86,7 +92,7 @@ public sealed class PhysicalSky : IDisposable
         shader.SetBool("uAtmosphere", true);
         shader.SetVector3("uSunDir", sun?.DirectionToSun ?? Vector3.UnitY);
         shader.SetFloat("uSunIntensity", Brightness);
-        shader.SetFloat("uSunDiscBrightness", sun is { Enabled: true } ? sun.DiscBrightness * DiscVisibility : 0f);
+        shader.SetFloat("uSunDiscBrightness", sun is { Enabled: true, ShowDisc: true } ? sun.DiscBrightness * DiscVisibility : 0f);
         shader.SetFloat("uSunRadius", (sun?.AngularRadius ?? 0.53f) * MathUtil.Deg2Rad);
         shader.SetFloat("uCameraHeight", MathF.Max(cameraPosition.Y * 0.001f, 0.002f)); // world units are metres
         shader.SetFloat("uPlanetRadius", PlanetRadius);

@@ -317,6 +317,31 @@ Game.Volume.AddScreenShader("PS1");
 Game.Volume.GetScreenShader("CRT")?.Set("Curvature", 0.2f);
 ```
 
+Screen shaders also read `sunDirection` (towards the sun) and `sunColor` (its light, zero when it is off).
+
+### Sky shaders (your own sky and sun)
+
+A `.shader` file with a `sky` block draws the sky. Pick it in Hierarchy > **Environment** > Sky > *Shader* (or drag its
+tile into the view); **New sky shader** in Project > Shaders starts one. `color` starts as the engine's sky in that
+direction (the physical atmosphere with its clouds, or the gradient): keep it, change it or replace it. It reads
+`direction`, `sunDirection`, `sunColor`, `sunSize` (radians), `time` and `cameraPosition`, and can call
+`sunDisc(direction, sunDirection, size)`, `skyColor(direction)` and the library. Colours are linear light (the sun is far
+brighter than 1). Storm and fog still cover it. Bundled: **ToonSky** (day / sunset / night gradient that follows the sun,
+a hard toon sun with a glow ring, a moon and stars).
+
+```glsl
+sky
+{
+    vec3 mine = mix(vec3(0.9, 0.5, 0.3), vec3(0.1, 0.2, 0.6), saturate(direction.y));
+    mine += sunColor * sunDisc(direction, sunDirection, 0.05) * 10.0;   // a big sun
+    color = mine;
+}
+```
+
+In **Environment**, the **Sun** can be switched off (light and disc), keep its light but hide the disc, or be removed and
+added again; the **Physical sky** can be switched off, which draws the Top / Horizon / Bottom gradient instead (with the
+sun's disc) and leaves the ambient light to you.
+
 ## Prefabs
 
 A prefab is a reusable object saved to `Prefabs/<Name>.prefab` (JSON): the object and its children, with their mesh,

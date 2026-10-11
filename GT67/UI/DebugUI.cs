@@ -316,66 +316,18 @@ public sealed class DebugUI : IDisposable
             g.Slider("Intensity", scene.AmbientIntensity, 0f, 2f, v => scene.AmbientIntensity = v);
         }
 
-        if (scene.Sun is { } sun && g.CollapsingHeader("Sun"))
+        if (g.CollapsingHeader("Sun"))
         {
             g.PushId("sun");
-            g.Check("Enabled", sun.Enabled, v => sun.Enabled = v);
-            g.Check("Follow time of day", sun.AutoPosition, v => sun.AutoPosition = v);
-            if (sun.AutoPosition)
-            {
-                g.Slider("Time of day", sun.TimeOfDay, 0f, 24f, v => sun.TimeOfDay = v, "0.00");
-                g.Slider("Time speed", sun.TimeSpeed, 0f, 2f, v => sun.TimeSpeed = v);
-                g.Slider("Latitude", sun.Latitude, -90f, 90f, v => sun.Latitude = v, "0");
-                g.Slider("Season", sun.Declination, -23.5f, 23.5f, v => sun.Declination = v, "0.0");
-                g.Slider("Compass", sun.NorthRotation, -180f, 180f, v => sun.NorthRotation = v, "0");
-            }
-            else
-            {
-                g.Drag3("Direction", sun.Direction, 0.01f, v => sun.Direction = v);
-            }
-            g.TextDim($"Elevation {sun.Elevation:0.0}°, azimuth {sun.Azimuth:0.0}°");
-
-            LightColorIntensity(sun);
-            g.Check("Atmospheric colour", sun.AtmosphericLighting, v => sun.AtmosphericLighting = v);
-            g.Slider("Disc radius", sun.AngularRadius, 0.1f, 5f, v => sun.AngularRadius = v);
-            g.Slider("Disc brightness", sun.DiscBrightness, 0f, 200f, v => sun.DiscBrightness = v, "0");
-            g.Check("Cast shadow", sun.CastShadow, v => sun.CastShadow = v);
-            g.Slider("Shadow size", sun.ShadowSize, 5f, 100f, v => sun.ShadowSize = v, "0");
-            g.Slider("Shadow bias", sun.ShadowBias, 0.0001f, 0.01f, v => sun.ShadowBias = v, "0.0000");
+            DrawSun(scene);
             g.PopId();
         }
 
-        if (scene.Skybox?.Physical is { } sky && g.CollapsingHeader("Sky"))
+        if (g.CollapsingHeader("Sky"))
         {
             g.PushId("sky");
-            g.Slider("Brightness", sky.Brightness, 1f, 60f, v => sky.Brightness = v, "0.0");
-            g.Slider("Haze", sky.MieCoefficient * 1000f, 2f, 100f, v => sky.MieCoefficient = v / 1000f, "0.0");
-            g.Slider("Haze anisotropy", sky.MieAnisotropy, 0f, 0.98f, v => sky.MieAnisotropy = v);
-            g.Slider("Ambient from sky", sky.AmbientScale, 0f, 2f, v => sky.AmbientScale = v);
-            g.Check("Stars", sky.Stars, v => sky.Stars = v);
+            DrawSky(scene);
             g.PopId();
-
-            if (sky.Clouds is { } clouds && g.CollapsingHeader("Clouds"))
-            {
-                g.PushId("clouds");
-                g.Check("Enabled", clouds.Enabled, v => clouds.Enabled = v);
-                g.Slider("Coverage", clouds.Coverage, 0f, 1f, v => clouds.Coverage = v);
-                g.Slider("Density", clouds.Density, 0.1f, 4f, v => clouds.Density = v);
-                g.Slider("Altitude", clouds.Altitude, 200f, 6000f, v => clouds.Altitude = v, "0");
-                g.Slider("Thickness", clouds.Thickness, 300f, 6000f, v => clouds.Thickness = v, "0");
-                g.Check("Cast shadows", clouds.CastShadows, v => clouds.CastShadows = v);
-                g.Slider("Shadow strength", clouds.ShadowStrength, 0f, 1f, v => clouds.ShadowStrength = v);
-                g.Slider("Wind speed", clouds.WindSpeed, 0f, 200f, v => clouds.WindSpeed = v, "0");
-                g.Slider("Edge detail", clouds.DetailStrength, 0f, 0.95f, v => clouds.DetailStrength = v);
-                g.Slider("Variation", clouds.Variation, 0f, 1f, v => clouds.Variation = v);
-                g.Slider("Evolution", clouds.Evolution, 0f, 10f, v => clouds.Evolution = v, "0.0");
-                g.Slider("Weather size (m)", clouds.WeatherSize, 2000f, 150000f, v => clouds.WeatherSize = v, "0");
-                int seed = clouds.Seed;
-                if (g.DragInt("Seed", ref seed)) clouds.Seed = seed;
-                g.Slider("Sun light", clouds.SunIntensity, 0f, 6f, v => clouds.SunIntensity = v);
-                g.Slider("Ambient light", clouds.AmbientIntensity, 0f, 4f, v => clouds.AmbientIntensity = v);
-                g.PopId();
-            }
         }
 
         if (g.CollapsingHeader("Rain"))
@@ -448,6 +400,141 @@ public sealed class DebugUI : IDisposable
         g.Slider("Quality (0 best, 3 fastest)", renderer.Quality, 0f, 3f, v => renderer.Quality = (int)MathF.Round(v), "0");
         g.Check("Puddle reflections", renderer.ReflectionsEnabled, v => renderer.ReflectionsEnabled = v);
         g.TextDim($"{1f / MathF.Max(renderer.AverageFrameTime, 0.001f):0} fps, {renderer.AverageFrameTime * 1000f:0.0} ms per frame");
+    }
+
+    /// <summary>The sun: on/off (light and disc), the disc alone, where it is, its light and shadows; add or remove it.</summary>
+    private void DrawSun(Scene scene)
+    {
+        var g = G;
+        if (scene.Sun is not { } sun)
+        {
+            g.TextDim("This scene has no sun.");
+            if (g.IconTextButton(IconKind.Plus, "Add a sun")) scene.Sun = new Sun { TimeOfDay = 15f, Intensity = 2.2f };
+            return;
+        }
+
+        g.Check("Sun on (light and disc)", sun.Enabled, v => sun.Enabled = v);
+        g.Check("Show the disc in the sky", sun.ShowDisc, v => sun.ShowDisc = v);
+        g.Check("Follow time of day", sun.AutoPosition, v => sun.AutoPosition = v);
+        if (sun.AutoPosition)
+        {
+            g.Slider("Time of day", sun.TimeOfDay, 0f, 24f, v => sun.TimeOfDay = v, "0.00");
+            g.Slider("Time speed", sun.TimeSpeed, 0f, 2f, v => sun.TimeSpeed = v);
+            g.Slider("Latitude", sun.Latitude, -90f, 90f, v => sun.Latitude = v, "0");
+            g.Slider("Season", sun.Declination, -23.5f, 23.5f, v => sun.Declination = v, "0.0");
+            g.Slider("Compass", sun.NorthRotation, -180f, 180f, v => sun.NorthRotation = v, "0");
+        }
+        else
+        {
+            g.Drag3("Direction", sun.Direction, 0.01f, v => sun.Direction = v);
+        }
+        g.TextDim($"Elevation {sun.Elevation:0.0}°, azimuth {sun.Azimuth:0.0}°");
+
+        LightColorIntensity(sun);
+        g.Check("Atmospheric colour", sun.AtmosphericLighting, v => sun.AtmosphericLighting = v);
+        g.Slider("Disc radius", sun.AngularRadius, 0.1f, 5f, v => sun.AngularRadius = v);
+        g.Slider("Disc brightness", sun.DiscBrightness, 0f, 200f, v => sun.DiscBrightness = v, "0");
+        g.Check("Cast shadow", sun.CastShadow, v => sun.CastShadow = v);
+        g.Slider("Shadow size", sun.ShadowSize, 5f, 100f, v => sun.ShadowSize = v, "0");
+        g.Slider("Shadow bias", sun.ShadowBias, 0.0001f, 0.01f, v => sun.ShadowBias = v, "0.0000");
+        if (g.IconTextButton(IconKind.Trash, "Remove the sun", 0f, ButtonStyle.Danger)) scene.Sun = null;
+    }
+
+    private int _skyShaderChoice = -1;
+
+    /// <summary>The sky: physical atmosphere on/off (its settings and clouds), the gradient when it is off, and a sky shader.</summary>
+    private void DrawSky(Scene scene)
+    {
+        var g = G;
+        if (scene.Skybox is not { } skybox)
+        {
+            g.TextDim("This scene has no sky (the clear colour of the Render tab shows).");
+            if (g.IconTextButton(IconKind.Plus, "Add the physical sky")) scene.Skybox = new Skybox(new PhysicalSky { Clouds = new CloudLayer() });
+            return;
+        }
+
+        if (skybox.Physical is { } sky)
+        {
+            g.Check("Physical sky (atmosphere)", sky.Enabled, v => sky.Enabled = v);
+            if (sky.Enabled)
+            {
+                g.Slider("Brightness", sky.Brightness, 1f, 60f, v => sky.Brightness = v, "0.0");
+                g.Slider("Haze", sky.MieCoefficient * 1000f, 2f, 100f, v => sky.MieCoefficient = v / 1000f, "0.0");
+                g.Slider("Haze anisotropy", sky.MieAnisotropy, 0f, 0.98f, v => sky.MieAnisotropy = v);
+                g.Slider("Ambient from sky", sky.AmbientScale, 0f, 2f, v => sky.AmbientScale = v);
+                g.Check("Stars", sky.Stars, v => sky.Stars = v);
+                if (sky.Clouds is { } clouds && g.CollapsingHeader("Clouds", defaultOpen: false))
+                {
+                    g.PushId("clouds");
+                    g.Check("Enabled", clouds.Enabled, v => clouds.Enabled = v);
+                    g.Slider("Coverage", clouds.Coverage, 0f, 1f, v => clouds.Coverage = v);
+                    g.Slider("Density", clouds.Density, 0.1f, 4f, v => clouds.Density = v);
+                    g.Slider("Altitude", clouds.Altitude, 200f, 6000f, v => clouds.Altitude = v, "0");
+                    g.Slider("Thickness", clouds.Thickness, 300f, 6000f, v => clouds.Thickness = v, "0");
+                    g.Check("Cast shadows", clouds.CastShadows, v => clouds.CastShadows = v);
+                    g.Slider("Shadow strength", clouds.ShadowStrength, 0f, 1f, v => clouds.ShadowStrength = v);
+                    g.Slider("Wind speed", clouds.WindSpeed, 0f, 200f, v => clouds.WindSpeed = v, "0");
+                    g.Slider("Edge detail", clouds.DetailStrength, 0f, 0.95f, v => clouds.DetailStrength = v);
+                    g.Slider("Variation", clouds.Variation, 0f, 1f, v => clouds.Variation = v);
+                    g.Slider("Evolution", clouds.Evolution, 0f, 10f, v => clouds.Evolution = v, "0.0");
+                    g.Slider("Weather size (m)", clouds.WeatherSize, 2000f, 150000f, v => clouds.WeatherSize = v, "0");
+                    int seed = clouds.Seed;
+                    if (g.DragInt("Seed", ref seed)) clouds.Seed = seed;
+                    g.Slider("Sun light", clouds.SunIntensity, 0f, 6f, v => clouds.SunIntensity = v);
+                    g.Slider("Ambient light", clouds.AmbientIntensity, 0f, 4f, v => clouds.AmbientIntensity = v);
+                    g.PopId();
+                }
+            }
+            else
+            {
+                g.TextWrapped("The atmosphere is off: the gradient below is drawn, with the sun's disc, and the ambient light is set by hand above.", dim: true);
+            }
+        }
+        else if (skybox.Cubemap != null)
+        {
+            g.TextDim("A cubemap sky (images from Assets/Skybox).");
+        }
+        else if (g.IconTextButton(IconKind.Cloud, "Use the physical sky"))
+        {
+            var physical = new Skybox(new PhysicalSky { Clouds = new CloudLayer() })
+            {
+                TopColor = skybox.TopColor, HorizonColor = skybox.HorizonColor, BottomColor = skybox.BottomColor,
+                CustomShader = skybox.CustomShader,
+            };
+            skybox.Dispose();
+            scene.Skybox = skybox = physical;
+        }
+
+        if (skybox.ActivePhysical == null && skybox.Cubemap == null)
+        {
+            g.Rgb("Top", skybox.TopColor, v => skybox.TopColor = v);
+            g.Rgb("Horizon", skybox.HorizonColor, v => skybox.HorizonColor = v);
+            g.Rgb("Bottom", skybox.BottomColor, v => skybox.BottomColor = v);
+        }
+
+        // A sky shader: a .shader file with a 'sky' block, drawn over (or instead of) the sky above
+        g.SeparatorText("Sky shader");
+        var library = _window.Renderer.Custom;
+        var names = new List<string> { "(none)" };
+        names.AddRange(library.Shaders.Where(s => s.IsSky).Select(s => s.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase));
+        _skyShaderChoice = Math.Max(0, names.FindIndex(n => skybox.CustomShader != null && string.Equals(n, skybox.CustomShader.Name, StringComparison.OrdinalIgnoreCase)));
+        if (g.Combo("Shader", ref _skyShaderChoice, names))
+            skybox.CustomShader = _skyShaderChoice <= 0 ? null : new ScreenShaderUse(names[_skyShaderChoice]);
+        if (names.Count == 1) g.TextWrapped("No sky shaders yet: Project > Shaders > New sky shader.", dim: true);
+
+        if (skybox.CustomShader is { } use)
+        {
+            g.Check("Enabled##skyshader", use.Enabled, v => use.Enabled = v);
+            var shader = library.Get(use.Name);
+            if (shader is not { IsSky: true }) g.TextStatus($"No sky shader called '{use.Name}' in Shaders/Custom.", error: true);
+            else
+            {
+                if (shader.Error != null) g.TextStatus(shader.Error, error: true);
+                foreach (var param in shader.Params) DrawScreenParam(use, param);
+                if (g.IconTextButton(IconKind.Refresh, "Default settings"))
+                    foreach (var param in shader.Params) use.Reset(param.Name);
+            }
+        }
     }
 
     private void LightColorIntensity(Light light)

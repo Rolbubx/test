@@ -23,6 +23,15 @@ public sealed class Skybox : IDisposable
     public Color4 HorizonColor { get; set; } = new(0.74f, 0.82f, 0.92f, 1f);
     public Color4 BottomColor { get; set; } = new(0.30f, 0.30f, 0.33f, 1f);
 
+    /// <summary>
+    /// A sky shader (a .shader file with a <c>sky</c> block) run over this sky, with its settings; null = none.
+    /// <c>scene.Skybox.CustomShader = new ScreenShaderUse("ToonSky");</c>
+    /// </summary>
+    public ScreenShaderUse? CustomShader { get; set; }
+
+    /// <summary>The physical atmosphere, when there is one and it is switched on.</summary>
+    public PhysicalSky? ActivePhysical => Physical is { Enabled: true } physical ? physical : null;
+
     public Skybox(Cubemap? cubemap = null) => Cubemap = cubemap;
 
     public Skybox(PhysicalSky physical) => Physical = physical;
@@ -44,7 +53,15 @@ public sealed class Skybox : IDisposable
         shader.SetMatrix4("uProjection", projection);
         shader.SetBool("uHasCubemap", Cubemap != null);
         shader.SetBool("uAtmosphere", false);
-        Physical?.SetUniforms(shader, cameraPosition, sun);
+        if (Physical is { Enabled: true }) Physical.SetUniforms(shader, cameraPosition, sun);
+        else
+        {
+            // The gradient sky still shows the sun's disc
+            shader.SetBool("uClouds", false);
+            shader.SetVector3("uSunDir", sun?.DirectionToSun ?? Vector3.UnitY);
+            shader.SetFloat("uSunDiscBrightness", sun is { Enabled: true, ShowDisc: true } ? sun.DiscBrightness : 0f);
+            shader.SetFloat("uSunRadius", (sun?.AngularRadius ?? 0.53f) * MathUtil.Deg2Rad);
+        }
         shader.SetVector3("uTop", MathUtil.ToLinear(TopColor));
         shader.SetVector3("uHorizon", MathUtil.ToLinear(HorizonColor));
         shader.SetVector3("uBottom", MathUtil.ToLinear(BottomColor));

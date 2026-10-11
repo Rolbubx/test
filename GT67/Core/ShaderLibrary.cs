@@ -34,6 +34,14 @@ public sealed class CustomShader
     internal int VertexLine { get; set; } = 1;
     internal string? ScreenBody { get; set; }
     internal int ScreenLine { get; set; } = 1;
+    internal string? SkyBody { get; set; }
+    internal int SkyLine { get; set; } = 1;
+
+    /// <summary>
+    /// True for a sky shader (a <c>sky { ... }</c> block): it changes or replaces the sky (and can draw its own sun)
+    /// and is picked for a scene's sky in Environment (<see cref="Skybox.CustomShader"/>).
+    /// </summary>
+    public bool IsSky => SkyBody != null;
     internal DateTime LastWrite { get; set; }
 
     /// <summary>
@@ -179,7 +187,14 @@ public sealed class ShaderLibrary : IDisposable
         {
             try
             {
-                if (shader.IsScreen)
+                if (shader.IsSky)
+                {
+                    string skyVert = System.IO.File.ReadAllText(Path.Combine(_engineDirectory, "sky.vert"));
+                    string skyFrag = GenerateSky(shader, System.IO.File.ReadAllText(Path.Combine(_engineDirectory, "sky.frag")));
+                    shader.Program = Shader.FromSource("sky:" + name, skyVert, skyFrag);
+                    Log.Info($"Sky shader '{name}' compiled.");
+                }
+                else if (shader.IsScreen)
                 {
                     string postVert = System.IO.File.ReadAllText(Path.Combine(_engineDirectory, "post.vert"));
                     shader.Program = Shader.FromSource("screen:" + name, postVert, GenerateScreen(shader));
@@ -266,13 +281,15 @@ public sealed class ShaderLibrary : IDisposable
                 continue;
             }
 
-            string? block = IsBlock(code, "surface") ? "surface" : IsBlock(code, "vertex") ? "vertex" : IsBlock(code, "screen") ? "screen" : null;
+            string? block = IsBlock(code, "surface") ? "surface" : IsBlock(code, "vertex") ? "vertex"
+                : IsBlock(code, "screen") ? "screen" : IsBlock(code, "sky") ? "sky" : null;
             if (block == null)
             {
-                error = $"line {i + 1}: expected 'param ...', 'vertex {{ ... }}', 'surface {{ ... }}' or 'screen {{ ... }}', found '{code}'.";
+                error = $"line {i + 1}: expected 'param ...', 'vertex {{ ... }}', 'surface {{ ... }}', 'screen {{ ... }}' or 'sky {{ ... }}', found '{code}'.";
                 return shader;
             }
-            if ((block == "surface" && hasSurface) || (block == "vertex" && shader.VertexBody != null) || (block == "screen" && shader.ScreenBody != null))
+            if ((block == "surface" && hasSurface) || (block == "vertex" && shader.VertexBody != null) ||
+                (block == "screen" && shader.ScreenBody != null) || (block == "sky" && shader.SkyBody != null))
             {
                 error = $"line {i + 1}: there is already a '{block}' block.";
                 return shader;
@@ -293,6 +310,11 @@ public sealed class ShaderLibrary : IDisposable
                 shader.ScreenBody = body;
                 shader.ScreenLine = bodyLine;
             }
+            else if (block == "sky")
+            {
+                shader.SkyBody = body;
+                shader.SkyLine = bodyLine;
+            }
             else
             {
                 shader.VertexBody = body;
@@ -301,10 +323,11 @@ public sealed class ShaderLibrary : IDisposable
             i = lastLine;
         }
 
-        if (shader.ScreenBody != null && (hasSurface || shader.VertexBody != null))
-            error = "a screen shader ('screen { ... }') is for the whole picture: it cannot also have 'surface' or 'vertex' blocks.";
-        else if (!hasSurface && shader.VertexBody == null && shader.ScreenBody == null)
-            error = "there is no 'surface { ... }', 'vertex { ... }' or 'screen { ... }' block.";
+        int kinds = (hasSurface || shader.VertexBody != null ? 1 : 0) + (shader.ScreenBody != null ? 1 : 0) + (shader.SkyBody != null ? 1 : 0);
+        if (kinds > 1)
+            error = "a file is one kind of shader: an object ('surface' / 'vertex'), the whole picture ('screen') or the sky ('sky').";
+        else if (kinds == 0)
+            error = "there is no 'surface { ... }', 'vertex { ... }', 'screen { ... }' or 'sky { ... }' block.";
         return shader;
     }
 
@@ -452,7 +475,7 @@ public sealed class ShaderLibrary : IDisposable
         "hash", "hash2", "noise", "fbm", "voronoi", "remap", "saturate", "rotate", "hsv", "rgbToHsv", "fresnel",
         "stripes", "checker", "circle", "triplanar", "bump",
         "color", "resolution", "depth", "sampleScene", "sampleDepth", "dither", "worldPosition", "cameraPosition",
-        "sampleWorld", "isSky",
+        "sampleWorld", "isSky", "direction", "sunSize", "sunDisc", "skyColor",
     };
 
     // ---- generated GLSL ----------------------------------------------------------------------------
@@ -657,12 +680,14 @@ public sealed class ShaderLibrary : IDisposable
         s.AppendLine("uniform float uFar;");
         s.AppendLine("uniform mat4 uInvViewProjection;");
         s.AppendLine("uniform vec3 uCameraPosition;");
+        s.AppendLine("uniform vec3 uSunDirection;");
+        s.AppendLine("uniform vec3 uSunColor;");
         s.Append(Uniforms(shader));
         s.AppendLine("float fwidthSafe(float x) { return fwidth(x); }");
         s.AppendLine(Library);
         s.AppendLine(ScreenLibrary);
         s.AppendLine("void userScreen(inout vec3 color, vec2 uv, vec2 resolution, float time, float depth, vec3 worldPosition,");
-        s.AppendLine("                vec3 cameraPosition)");
+        s.AppendLine("                vec3 cameraPosition, vec3 sunDirection, vec3 sunColor)");
         s.AppendLine("{");
         s.AppendLine("#line " + shader.ScreenLine);
         s.AppendLine(shader.ScreenBody);
@@ -670,11 +695,73 @@ public sealed class ShaderLibrary : IDisposable
         s.AppendLine("void main()");
         s.AppendLine("{");
         s.AppendLine("    vec3 color = texture(uInput, vUV).rgb;");
-        s.AppendLine("    userScreen(color, vUV, uResolution, uTime, sampleDepth(vUV), sampleWorld(vUV), uCameraPosition);");
+        s.AppendLine("    userScreen(color, vUV, uResolution, uTime, sampleDepth(vUV), sampleWorld(vUV), uCameraPosition, uSunDirection, uSunColor);");
         s.AppendLine("    FragColor = vec4(color, 1.0);");
         s.AppendLine("}");
         return s.ToString();
     }
+
+    /// <summary>
+    /// Builds a sky shader: the engine's sky.frag with this shader's function run for every direction of the sky, after
+    /// the engine's own sky (atmosphere with clouds, cubemap or gradient) and before the storm and the fog.
+    /// </summary>
+    public static string GenerateSky(CustomShader shader, string skyFragment)
+    {
+        var s = new StringBuilder();
+        s.AppendLine("uniform vec3 uUserSunDirection;");
+        s.AppendLine("uniform vec3 uUserSunColor;");
+        s.AppendLine("uniform float uUserSunSize;");
+        s.AppendLine("uniform float uUserTime;");
+        s.AppendLine("uniform vec3 uUserCameraPosition;");
+        s.Append(Uniforms(shader));
+        s.AppendLine("float fwidthSafe(float x) { return fwidth(x); }");
+        s.AppendLine(Library);
+        s.AppendLine("""
+            // sunDisc(direction, sunDirection, size): 1 inside a disc of 'size' radians around the sun, 0 outside, with a smooth edge.
+            float sunDisc(vec3 d, vec3 s, float size)
+            {
+                float c = dot(normalize(d), normalize(s));
+                float edge = max(fwidth(c), 1e-5);
+                return smoothstep(cos(size) - edge, cos(size) + edge, c);
+            }
+            // skyColor(direction): the engine's own sky in any direction (atmosphere with clouds, cubemap or gradient).
+            vec3 skyColor(vec3 d) { return baseSky(normalize(d)); }
+            """);
+        s.AppendLine("void userSky(inout vec3 color, vec3 direction, vec3 sunDirection, vec3 sunColor, float sunSize, float time,");
+        s.AppendLine("             vec3 cameraPosition)");
+        s.AppendLine("{");
+        s.AppendLine("#line " + shader.SkyLine);
+        s.AppendLine(shader.SkyBody);
+        s.AppendLine("}");
+
+        const string call = "userSky(color, dir, uUserSunDirection, uUserSunColor, uUserSunSize, uUserTime, uUserCameraPosition);";
+        return skyFragment
+            .Replace("//@USER_SKY_DECLARATIONS@", s.ToString())
+            .Replace("//@USER_SKY_CALL@", call);
+    }
+
+    /// <summary>The text of a new sky shader file.</summary>
+    public static string SkyTemplate(string name) => $$"""
+        // {{name}}: a sky shader. Pick it for a scene's sky in the Hierarchy > Environment > Sky. Save the file and
+        // the engine reloads it by itself. Colours here are linear light (1 = white, the sun is much brighter).
+        param color Zenith = (0.12, 0.3, 0.85)
+        param color Horizon = (0.95, 0.7, 0.45)
+        param float Blend = 1.0 range 0 1          // 0 = keep the engine's sky, 1 = only this one
+        param float SunGlow = 3.0 range 0 20
+
+        // 'color' starts as the engine's sky in this direction (physical atmosphere with clouds, or the gradient):
+        // keep it, change it or replace it. You can read direction (unit vector), sunDirection (towards the sun),
+        // sunColor (its light, zero when the sun is off), sunSize (radius in radians), time and cameraPosition, and call
+        // sunDisc(direction, sunDirection, size), skyColor(direction) and the library (noise, fbm, voronoi, hash, hsv...).
+        sky
+        {
+            float up = saturate(direction.y);
+            vec3 mine = mix(Horizon, Zenith, pow(up, 0.45)) * 1.5;
+            mine += sunColor * sunDisc(direction, sunDirection, sunSize) * 15.0;                  // the disc
+            mine += sunColor * pow(saturate(dot(direction, sunDirection)), 48.0) * SunGlow * 0.1; // its glow
+            color = mix(color, mine, Blend);
+        }
+        """;
 
     /// <summary>Helpers that only screen shaders have.</summary>
     private const string ScreenLibrary = """
