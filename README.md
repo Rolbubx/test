@@ -645,7 +645,7 @@ post.Remove(someEffect);
 |---|---|---|
 | `BloomEffect` | HDR | threshold, soft knee, intensity, radius, iterations |
 | `DepthOfFieldEffect` | HDR | scene depth; `FocusDistance` or `FocusTarget`, `FocusRange`, `MaxBlur` |
-| `SunRaysEffect` | HDR | scene depth + `scene.Sun` in front of the camera |
+| `SunRaysEffect` | HDR | volumetric shafts in the air (the sun's shadow map + the clouds), seen in every direction; plus the glare around the sun while it is on screen |
 | `ChromaticAberrationEffect` | HDR | `Strength` |
 | `ColorCorrectionEffect` | LDR | `Exposure Temperature Tint HueShift Saturation Vibrance Contrast Brightness Lift Gamma Gain` (all neutral by default) |
 | `ColorGradingEffect` | LDR | simple version: `Brightness Contrast Saturation Tint` |
