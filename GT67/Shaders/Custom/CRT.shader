@@ -8,8 +8,8 @@ param float Bleed = 1.5 range 0 4               // colour fringes, in pixels
 param float Vignette = 0.4 range 0 1
 param float Flicker = 0.02 range 0 0.1
 
-param float FogStart = 10.0 range 0 100
-param float FogEnd = 100.0 range 1 400
+param float FogStart = 0.0 range 0 100       // metres: where the fog begins
+param float FogEnd = 40.0 range 1 400        // metres: where it is at its strongest
 param float FogAmount = 0.5 range 0 1
 param color FogColor = (0.5, 0.5, 0.5)
 
