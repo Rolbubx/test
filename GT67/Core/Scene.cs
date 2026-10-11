@@ -17,6 +17,12 @@ public sealed class Scene : IDisposable
     private readonly List<Terrain> _terrains = new();
     private readonly List<Sound> _sounds = new();
 
+    /// <summary>The scene's name (the one <see cref="SceneManager.LoadScene"/> takes).</summary>
+    public string Name { get; set; } = "Main";
+
+    /// <summary>This scene's post-processing settings, applied when it becomes active (see <see cref="PostProfile"/>).</summary>
+    public PostProfile Volume { get; } = new();
+
     public IReadOnlyList<GameObject> Roots => _roots;
 
     /// <summary>Editable terrains in the scene (each is also a normal object in <see cref="Roots"/>).</summary>

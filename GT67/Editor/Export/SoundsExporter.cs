@@ -10,7 +10,7 @@ public static class SoundsExporter
 
     public static string Write(ExportContext context)
     {
-        var w = new CodeWriter("The sounds of the game; the sound files are shipped in Assets/Sounds.");
+        var w = new CodeWriter("The sounds of the game; the sound files are shipped in Assets/Sounds.", context.Namespace);
 
         w.Line("/// <summary>Sounds with their volume, pitch, looping and 3D settings.</summary>");
         w.Open("public static class SoundsGenerator");

@@ -76,6 +76,12 @@
         <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
     </ItemGroup>
 
+    <!-- Compile swaps Generated/GeneratedGame in through these two folders; a leftover copy must not be built twice -->
+    <ItemGroup>
+        <Compile Remove="Generated\GeneratedGame.new\**;Generated\GeneratedGame.old\**" />
+        <None Remove="Generated\GeneratedGame.new\**;Generated\GeneratedGame.old\**" />
+    </ItemGroup>
+
     <!-- The game leaves the editor and the live script compiler out (the scripts in Scripts/ are compiled into it) -->
     <ItemGroup Condition="'$(Configuration)' == 'Game'">
         <Compile Remove="Editor\**" />

@@ -12,30 +12,36 @@ public enum FontWeight
 }
 
 /// <summary>
-/// The UI's real fonts: Inter (Regular, Medium, SemiBold, Bold) loaded from <c>Assets/Fonts</c>. If a file is missing the
-/// system sans-serif font is used. Put your own <c>.otf</c>/<c>.ttf</c> files there under the same names to change the look.
+/// The UI's real fonts: JetBrains Mono (Regular, Medium, SemiBold, Bold) loaded from <c>Assets/Fonts</c>. If a file is
+/// missing the system font is used. Change <see cref="Family"/> to "Inter" for the proportional font that is also
+/// bundled, or put your own <c>&lt;Family&gt;-Regular.ttf</c> (or .otf) files there.
 /// </summary>
 public sealed class UiFonts : IDisposable
 {
+    /// <summary>The font family: files named &lt;Family&gt;-&lt;Weight&gt;.ttf or .otf in Assets/Fonts.</summary>
+    public const string Family = "JetBrainsMono";
+
     private readonly Dictionary<FontWeight, SKTypeface> _faces = new();
     private readonly Dictionary<(int size, FontWeight weight), SKFont> _fonts = new();
 
     public UiFonts(string directory)
     {
-        _faces[FontWeight.Regular] = Load(directory, "Inter-Regular.otf", null);
-        _faces[FontWeight.Medium] = Load(directory, "Inter-Medium.otf", _faces[FontWeight.Regular]);
-        _faces[FontWeight.SemiBold] = Load(directory, "Inter-SemiBold.otf", _faces[FontWeight.Regular]);
-        _faces[FontWeight.Bold] = Load(directory, "Inter-Bold.otf", _faces[FontWeight.SemiBold]);
+        _faces[FontWeight.Regular] = Load(directory, $"{Family}-Regular", null);
+        _faces[FontWeight.Medium] = Load(directory, $"{Family}-Medium", _faces[FontWeight.Regular]);
+        _faces[FontWeight.SemiBold] = Load(directory, $"{Family}-SemiBold", _faces[FontWeight.Regular]);
+        _faces[FontWeight.Bold] = Load(directory, $"{Family}-Bold", _faces[FontWeight.SemiBold]);
     }
 
-    private static SKTypeface Load(string directory, string file, SKTypeface? fallback)
+    private static SKTypeface Load(string directory, string name, SKTypeface? fallback)
     {
-        string path = Path.Combine(directory, file);
-        if (File.Exists(path))
+        foreach (var extension in new[] { ".ttf", ".otf" })
         {
+            string path = Path.Combine(directory, name + extension);
+            if (!File.Exists(path)) continue;
             var face = SKTypeface.FromFile(path);
             if (face != null) return face;
         }
+        string file = name + ".ttf";
 
         Log.Warn($"UI font '{file}' not found in '{directory}'; using the system font.");
         return fallback ?? SKTypeface.FromFamilyName("Segoe UI") ?? SKTypeface.Default;

@@ -23,6 +23,23 @@ public sealed class Game
     public Scene Scene => _window.Scene;
     public Camera Camera => _window.Camera;
 
+    // ---- scenes ----------------------------------------------------------------------------------
+
+    /// <summary>The name of the scene being played.</summary>
+    public string SceneName => _window.Scene.Name;
+
+    /// <summary>The names of the game's scenes (made in the editor's Hierarchy), the first one being where the game starts.</summary>
+    public IReadOnlyList<string> SceneNames => _window.Scenes.Names;
+
+    /// <summary>
+    /// Switches to another scene at the end of the frame, like Unity's SceneManager.LoadScene: the current scene (its
+    /// objects, scripts, sounds) is thrown away and a fresh copy of the new one starts, with its own post-processing.
+    /// </summary>
+    public void LoadScene(string name) => _window.Scenes.LoadScene(name);
+
+    /// <summary>Starts the current scene again from the beginning.</summary>
+    public void ReloadScene() => _window.Scenes.LoadScene(_window.Scene.Name);
+
     /// <summary>The game's user interface (HUD, menus): find elements by name and change their text, value or visibility.</summary>
     public UI.UiCanvas Ui => _window.GameUi;
 
@@ -355,6 +372,14 @@ public sealed class Game
         _timers.AddRange(_newTimers);
         _newTimers.Clear();
         _timers.RemoveAll(t => !t.Tick(deltaTime));
+    }
+
+    /// <summary>Forgets what belonged to the old scene (timers, lights added by scripts) when another scene is loaded.</summary>
+    internal void ResetForNewScene()
+    {
+        _timers.Clear();
+        _newTimers.Clear();
+        _addedLights.Clear();
     }
 
     /// <summary>Undoes what scripts changed through this API, when the editor stops playing.</summary>

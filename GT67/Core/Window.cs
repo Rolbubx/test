@@ -33,7 +33,11 @@ public sealed class Window : GameWindow
 
     private static readonly Keys[] AllKeys = Enum.GetValues<Keys>().Where(k => k != Keys.Unknown).ToArray();
 
-    public Scene Scene { get; } = new();
+    /// <summary>The active scene: the one updated and drawn. Change it with <see cref="Scenes"/>.</summary>
+    public Scene Scene { get; private set; } = new();
+
+    /// <summary>The game's named scenes (see <see cref="SceneManager"/>).</summary>
+    public SceneManager Scenes { get; }
 
     /// <summary>The API scripts use (time, input, finding and spawning objects).</summary>
     public Scripting.Game Game { get; }
@@ -91,6 +95,7 @@ public sealed class Window : GameWindow
         GL.LoadBindings(new GLFWBindingsContext());
         _maxFrames = maxFrames;
         Game = new Scripting.Game(this);
+        Scenes = new SceneManager(this);
         Scene.Game = Game;
     }
 
@@ -186,6 +191,14 @@ public sealed class Window : GameWindow
         Game.Tick(gameDt);
         Scene.Update(gameDt);
         Editor?.Update(dt);
+        Scenes.ProcessPending();
+    }
+
+    /// <summary>Makes <paramref name="scene"/> the active one (<see cref="SceneManager.Activate"/> applies its post-processing too).</summary>
+    internal void SetScene(Scene scene)
+    {
+        Scene = scene;
+        scene.Game = Game;
     }
 
     protected override void OnRenderFrame(FrameEventArgs args)

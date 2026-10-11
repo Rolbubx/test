@@ -364,6 +364,29 @@ public sealed partial class Gui
         return clicked;
     }
 
+    /// <summary>
+    /// A square tile with a big icon and its name underneath, for asset browsers (lay several out with
+    /// <see cref="SameLine"/>). Returns true when clicked; <see cref="LastItemDoubleClicked"/> tells about a double-click.
+    /// </summary>
+    public bool Tile(string label, IconKind icon, bool selected, float size = 78f, SKColor? iconColor = null)
+    {
+        var rect = AllocItem(size, size);
+        int id = GetId(label);
+        bool clicked = ButtonBehavior(id, rect, out bool hovered, out _);
+        LastItemDoubleClicked = hovered && Input.MouseDoubleClicked[0];
+        float hv = Fade(id, hovered);
+
+        if (selected) FillRect(Canvas, rect, 6f, Theme.Selection);
+        else if (hv > 0f) FillRect(Canvas, rect, 6f, WithAlpha(Theme.Hover, (byte)(Theme.Hover.Alpha * hv)));
+
+        float iconSize = size * 0.4f;
+        var iconRect = new UiRect(rect.CenterX - iconSize * 0.5f, rect.Y + size * 0.14f, iconSize, iconSize);
+        Icons.Draw(Canvas, icon, iconRect, iconColor ?? (selected ? Theme.AccentHover : Theme.TextDim), 1.7f);
+        DrawText(Canvas, Visible(label), new UiRect(rect.X + 4f, rect.Bottom - 26f, rect.Width - 8f, 20f),
+            selected ? SKColors.White : Theme.Text, TextAlign.Center, Theme.SmallFontSize);
+        return clicked;
+    }
+
     /// <summary>True if the last <see cref="Selectable"/> or tree row was double-clicked.</summary>
     public bool LastItemDoubleClicked { get; private set; }
 

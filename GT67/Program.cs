@@ -26,7 +26,8 @@ bool IsEditor = false;
 // Optional command line: "--frames N" closes the window after N frames (smoke tests), "--editor" / "--game"
 // override IsEditor, "--debug" turns on the temporary DebugFlag.On (the editor keeps it in its settings instead).
 // "--camera x,y,z,tx,ty,tz" fixes the view (from x,y,z towards tx,ty,tz) and "--screenshot file.png" saves the last
-// frame of a "--frames" run, e.g. to compare a shader change before and after.
+// frame of a "--frames" run, e.g. to compare a shader change before and after. "--scene Name" starts the compiled
+// game (--generated) in that scene instead of the first one.
 int maxFrames = 0;
 bool noVsync = false, dry = false;
 var offList = new List<string>();
@@ -36,7 +37,7 @@ bool noSky = false, noShadow = false, noReflect = false, generated = false, expo
 generated = true;   // the shipped game is the one the editor compiled (the demo scene is only a fallback)
 _ = exportDemo;     // "--export-demo" needs the editor, which the Game build leaves out
 #endif
-string? screenshot = null;
+string? screenshot = null, startScene = null;
 float[]? cameraView = null;
 var argv = Environment.GetCommandLineArgs();
 for (int i = 1; i < argv.Length; i++)
@@ -56,6 +57,7 @@ for (int i = 1; i < argv.Length; i++)
     if (argv[i] == "--debug") DebugFlag.On = true;
     if (argv[i] == "--screenshot" && i + 1 < argv.Length) screenshot = argv[i + 1];   // with --frames: save the last frame
     if (argv[i] == "--camera" && i + 1 < argv.Length) cameraView = ParseFloats(argv[i + 1]);   // "x,y,z,targetX,targetY,targetZ"
+    if (argv[i] == "--scene" && i + 1 < argv.Length) startScene = argv[i + 1];   // with --generated: start in this scene
 }
 
 
@@ -77,7 +79,8 @@ window.Initialize = w =>
     {
         BuildDemoScene(w);
         if (playSound != null) w.Scene.Add(new Sound(playSound) { Name = "Test tone", Loop = true, PlayOnStart = true, Spatial = true, Position = new Vector3(2f, 1f, 0f), Volume = 0.3f });
-        var result = new GT67.Editor.Export.GameExporter(w.Scene, GT67.Editor.ProjectPaths.Locate()!, w.GameUi, w.Renderer.Post).Generate();
+        w.Scene.Volume.CaptureFrom(w.Renderer.Post);
+        var result = new GT67.Editor.Export.GameExporter(new[] { w.Scene }, GT67.Editor.ProjectPaths.Locate()!, w.GameUi).Generate();
         Log.Info($"Exported: {string.Join(", ", result.Files)}; {result.Objects} objects, {result.CopiedFiles} asset files.");
         foreach (var warning in result.Warnings) Log.Warn(warning);
         w.Close();
@@ -90,6 +93,7 @@ window.Initialize = w =>
     {
         Log.Info("Building the game from Generated/GeneratedGame.");
         GameGenerator.Build(w);
+        if (startScene != null) w.Scenes.LoadNow(startScene);
         return;
     }
 

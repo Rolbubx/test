@@ -13,7 +13,7 @@ public static class TerrainExporter
 
     public static string Write(ExportContext context)
     {
-        var w = new CodeWriter("The terrains of the game: size, sculpted heights and painted colours.");
+        var w = new CodeWriter("The terrains of the game: size, sculpted heights and painted colours.", context.Namespace);
 
         w.Line("/// <summary>Terrains with their heights and paint.</summary>");
         w.Open("public static class TerrainGenerator");

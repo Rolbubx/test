@@ -176,7 +176,7 @@ public sealed class DebugUI : IDisposable
             Selected = null;
             g.Spacing(10f);
             g.TextDim("Nothing selected.");
-            g.TextWrapped("Click an object in the 3D view or pick it in the scene list.", dim: true);
+            g.TextWrapped("Click an object in the 3D view or pick anything in the Hierarchy: objects, lights, water, sounds, the Volume or the Environment.", dim: true);
             return;
         }
 
@@ -235,7 +235,77 @@ public sealed class DebugUI : IDisposable
         }
     }
 
+    /// <summary>The debug window's Lighting tab: the environment, the sounds and every light.</summary>
     public void DrawLighting()
+    {
+        var g = G;
+        var scene = _window.Scene;
+        DrawEnvironment();
+
+        if (g.CollapsingHeader("Sounds", defaultOpen: false))
+        {
+            g.PushId("sounds");
+            g.TextDim("Drop a .wav, .ogg or .mp3 onto the window to add one.");
+            g.Slider("Master volume", Sound.MasterVolume, 0f, 1.5f, v => Sound.MasterVolume = v);
+            for (int i = 0; i < scene.Sounds.Count; i++)
+            {
+                var sound = scene.Sounds[i];
+                g.PushId(i);
+                if (g.CollapsingHeader($"{sound.Name}##sound", defaultOpen: false) && !DrawSoundSettings(sound))
+                {
+                    g.PopId();
+                    break;
+                }
+                g.PopId();
+            }
+            if (g.Button("Add empty sound")) scene.Add(new Sound { Name = $"Sound {scene.Sounds.Count + 1}" });
+            g.PopId();
+        }
+
+        if (g.CollapsingHeader("Performance", defaultOpen: false))
+        {
+            g.PushId("perf");
+            DrawPerformance();
+            g.PopId();
+        }
+
+        for (int i = 0; i < scene.PointLights.Count; i++)
+        {
+            var light = scene.PointLights[i];
+            g.PushId(i);
+            bool open = g.CollapsingHeader($"{light.Name} {i + 1}##light", defaultOpen: false);
+            if (open)
+            {
+                g.Check("Enabled", light.Enabled, v => light.Enabled = v);
+                g.Drag3("Position", light.Position, 0.05f, v => light.Position = v);
+                LightColorIntensity(light);
+                g.Slider("Range", light.Range, 1f, 60f, v => light.Range = v, "0.0");
+                if (g.IconTextButton(IconKind.Trash, "Remove light", 140f, ButtonStyle.Danger))
+                {
+                    scene.PointLights.RemoveAt(i);
+                    g.PopId();
+                    break;
+                }
+            }
+            g.PopId();
+        }
+
+        if (scene.Spot is { } spot && g.CollapsingHeader("Spot light", defaultOpen: false))
+        {
+            g.PushId("spot");
+            g.Check("Enabled", spot.Enabled, v => spot.Enabled = v);
+            g.Drag3("Position", spot.Position, 0.05f, v => spot.Position = v);
+            g.Drag3("Direction", spot.Direction, 0.01f, v => spot.Direction = v);
+            LightColorIntensity(spot);
+            g.Slider("Inner angle", spot.InnerAngle, 1f, 80f, v => spot.InnerAngle = v, "0");
+            g.Slider("Outer angle", spot.OuterAngle, 1f, 89f, v => spot.OuterAngle = v, "0");
+            g.Slider("Range", spot.Range, 1f, 80f, v => spot.Range = v, "0.0");
+            g.PopId();
+        }
+    }
+
+    /// <summary>The scene's environment: ambient light, sun, sky, clouds, rain and fog.</summary>
+    public void DrawEnvironment()
     {
         var g = G;
         var scene = _window.Scene;
@@ -308,52 +378,6 @@ public sealed class DebugUI : IDisposable
             }
         }
 
-        if (g.CollapsingHeader("Sounds", defaultOpen: false))
-        {
-            g.PushId("sounds");
-            g.TextDim("Drop a .wav, .ogg or .mp3 onto the window to add one.");
-            g.Slider("Master volume", Sound.MasterVolume, 0f, 1.5f, v => Sound.MasterVolume = v);
-            for (int i = 0; i < scene.Sounds.Count; i++)
-            {
-                var sound = scene.Sounds[i];
-                g.PushId(i);
-                if (g.CollapsingHeader($"{sound.Name}##sound", defaultOpen: false))
-                {
-                    g.Input("Name", sound.Name, v => sound.Name = v);
-                    g.Input("File", sound.File, v => sound.File = v);
-                    g.Check("Enabled", sound.Enabled, v => sound.Enabled = v);
-                    g.Slider("Volume", sound.Volume, 0f, 2f, v => sound.Volume = v);
-                    g.Slider("Pitch", sound.Pitch, 0.25f, 3f, v => sound.Pitch = v);
-                    g.Check("Loop", sound.Loop, v => sound.Loop = v);
-                    g.Check("Play on start", sound.PlayOnStart, v => sound.PlayOnStart = v);
-                    g.Check("3D (from a place in the world)", sound.Spatial, v => sound.Spatial = v);
-                    if (sound.Spatial)
-                    {
-                        g.Drag3("Position", sound.Position, 0.05f, v => sound.Position = v);
-                        g.Slider("Full volume within", sound.MinDistance, 0.1f, 50f, v => sound.MinDistance = v, "0.0");
-                        g.Slider("Silent beyond", sound.MaxDistance, 1f, 300f, v => sound.MaxDistance = v, "0");
-                    }
-                    g.TextDim(sound.Length > 0f ? $"{sound.Length:0.0} s" + (sound.IsPlaying ? $", playing {sound.Time:0.0} s" : "") : "File not found or not readable.");
-                    if (g.Button(sound.IsPlaying ? "Stop" : "Play")) { if (sound.IsPlaying) sound.Stop(); else sound.Play(); }
-                    if (g.Button("Remove sound")) { scene.Remove(sound); g.PopId(); break; }
-                }
-                g.PopId();
-            }
-            if (g.Button("Add empty sound")) scene.Add(new Sound { Name = $"Sound {scene.Sounds.Count + 1}" });
-            g.PopId();
-        }
-
-        if (g.CollapsingHeader("Performance", defaultOpen: false))
-        {
-            g.PushId("perf");
-            var renderer = _window.Renderer;
-            g.Check("Automatic quality", renderer.AdaptiveQuality, v => renderer.AdaptiveQuality = v);
-            g.Slider("Quality (0 best, 3 fastest)", renderer.Quality, 0f, 3f, v => renderer.Quality = (int)MathF.Round(v), "0");
-            g.Check("Puddle reflections", renderer.ReflectionsEnabled, v => renderer.ReflectionsEnabled = v);
-            g.TextDim($"{1f / MathF.Max(renderer.AverageFrameTime, 0.001f):0} fps, {renderer.AverageFrameTime * 1000f:0.0} ms per frame");
-            g.PopId();
-        }
-
         if (g.CollapsingHeader("Rain"))
         {
             g.PushId("rain");
@@ -381,40 +405,49 @@ public sealed class DebugUI : IDisposable
             g.Slider("Fog", scene.Fog, 0f, 0.02f, v => scene.Fog = v, "0.0000");
             g.PopId();
         }
+    }
 
-        for (int i = 0; i < scene.PointLights.Count; i++)
+    /// <summary>Every setting of one sound. Returns false if the sound was removed from the scene.</summary>
+    public bool DrawSoundSettings(Sound sound)
+    {
+        var g = G;
+        g.Input("Name", sound.Name, v => sound.Name = v);
+        g.Input("File", sound.File, v => sound.File = v);
+        g.Check("Enabled", sound.Enabled, v => sound.Enabled = v);
+        g.Slider("Volume", sound.Volume, 0f, 2f, v => sound.Volume = v);
+        g.Slider("Pitch", sound.Pitch, 0.25f, 3f, v => sound.Pitch = v);
+        g.Check("Loop", sound.Loop, v => sound.Loop = v);
+        g.Check("Play on start", sound.PlayOnStart, v => sound.PlayOnStart = v);
+        g.Check("3D (from a place in the world)", sound.Spatial, v => sound.Spatial = v);
+        if (sound.Spatial)
         {
-            var light = scene.PointLights[i];
-            g.PushId(i);
-            bool open = g.CollapsingHeader($"{light.Name} {i + 1}##light", defaultOpen: false);
-            if (open)
-            {
-                g.Check("Enabled", light.Enabled, v => light.Enabled = v);
-                g.Drag3("Position", light.Position, 0.05f, v => light.Position = v);
-                LightColorIntensity(light);
-                g.Slider("Range", light.Range, 1f, 60f, v => light.Range = v, "0.0");
-                if (g.IconTextButton(IconKind.Trash, "Remove light", 140f, ButtonStyle.Danger))
-                {
-                    scene.PointLights.RemoveAt(i);
-                    g.PopId();
-                    break;
-                }
-            }
-            g.PopId();
+            g.Drag3("Position", sound.Position, 0.05f, v => sound.Position = v);
+            g.Slider("Full volume within", sound.MinDistance, 0.1f, 50f, v => sound.MinDistance = v, "0.0");
+            g.Slider("Silent beyond", sound.MaxDistance, 1f, 300f, v => sound.MaxDistance = v, "0");
         }
+        g.TextDim(sound.Length > 0f ? $"{sound.Length:0.0} s" + (sound.IsPlaying ? $", playing {sound.Time:0.0} s" : "") : "File not found or not readable.");
+        if (g.IconTextButton(sound.IsPlaying ? IconKind.Stop : IconKind.Play, sound.IsPlaying ? "Stop" : "Play", 100f))
+        {
+            if (sound.IsPlaying) sound.Stop(); else sound.Play();
+        }
+        g.SameLine();
+        if (g.IconTextButton(IconKind.Trash, "Remove", 110f, ButtonStyle.Danger))
+        {
+            _window.Scene.Remove(sound);
+            return false;
+        }
+        return true;
+    }
 
-        if (scene.Spot is { } spot && g.CollapsingHeader("Spot light", defaultOpen: false))
-        {
-            g.PushId("spot");
-            g.Check("Enabled", spot.Enabled, v => spot.Enabled = v);
-            g.Drag3("Position", spot.Position, 0.05f, v => spot.Position = v);
-            g.Drag3("Direction", spot.Direction, 0.01f, v => spot.Direction = v);
-            LightColorIntensity(spot);
-            g.Slider("Inner angle", spot.InnerAngle, 1f, 80f, v => spot.InnerAngle = v, "0");
-            g.Slider("Outer angle", spot.OuterAngle, 1f, 89f, v => spot.OuterAngle = v, "0");
-            g.Slider("Range", spot.Range, 1f, 80f, v => spot.Range = v, "0.0");
-            g.PopId();
-        }
+    /// <summary>Quality and speed settings of the renderer.</summary>
+    public void DrawPerformance()
+    {
+        var g = G;
+        var renderer = _window.Renderer;
+        g.Check("Automatic quality", renderer.AdaptiveQuality, v => renderer.AdaptiveQuality = v);
+        g.Slider("Quality (0 best, 3 fastest)", renderer.Quality, 0f, 3f, v => renderer.Quality = (int)MathF.Round(v), "0");
+        g.Check("Puddle reflections", renderer.ReflectionsEnabled, v => renderer.ReflectionsEnabled = v);
+        g.TextDim($"{1f / MathF.Max(renderer.AverageFrameTime, 0.001f):0} fps, {renderer.AverageFrameTime * 1000f:0.0} ms per frame");
     }
 
     private void LightColorIntensity(Light light)
@@ -541,6 +574,9 @@ public sealed class DebugUI : IDisposable
         g.SeparatorText("Display");
         g.LabelValue("Anti-aliasing", renderer.MsaaSamples > 0 ? $"MSAA {renderer.MsaaSamples}x" : "off");
         if (g.Toggle("VSync", ref _vsync)) _window.VSync = _vsync ? VSyncMode.On : VSyncMode.Off;
+
+        g.SeparatorText("Performance");
+        DrawPerformance();
 
         g.Spacing(4f);
         if (g.IconTextButton(IconKind.Refresh, "Reload shaders (F5)")) _window.ReloadShaders();

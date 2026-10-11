@@ -12,7 +12,7 @@ namespace GT67.Core;
 /// A reusable object saved to a file: <c>Prefabs/&lt;Name&gt;.prefab</c> (JSON) holds an object with its children,
 /// mesh, material, texture, collision, tag and scripts (with their settings). Spawn copies of it anywhere:
 /// <c>Prefab.Spawn(scene, "Enemy", position)</c>, or <c>Game.SpawnPrefab("Enemy", position)</c> from a script. In the
-/// editor, select an object and press "Save as prefab" in the Inspector; the Assets tab lists the prefabs.
+/// editor, select an object and press "Save as prefab" in the Inspector; the Project panel lists the prefabs.
 /// </summary>
 public static class Prefab
 {

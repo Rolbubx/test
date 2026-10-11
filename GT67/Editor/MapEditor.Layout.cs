@@ -6,25 +6,29 @@ using SkiaSharp;
 
 namespace GT67.Editor;
 
+// The editor's layout, like Unity: the toolbar on top, the Hierarchy (every item of the open scene) on the left, the
+// Inspector (whatever is selected) on the right, the Project browser and the Console along the bottom, and the 3D view
+// in the middle.
 public sealed partial class MapEditor
 {
     private const float ToolbarHeight = 52f;
     private const float SplitterThickness = 6f;
 
-    private static readonly string[] LeftTabs = { "Scene", "Assets", "Code", "UI" };
-    private static readonly IconKind[] LeftIcons = { IconKind.Cube, IconKind.Folder, IconKind.Code, IconKind.Layout };
-    private static readonly string[] RightTabs = { "Inspector", "Lighting", "Water", "Render", "Terrain", "UI" };
-    private static readonly IconKind[] RightIcons = { IconKind.Select, IconKind.Light, IconKind.Water, IconKind.Camera, IconKind.Terrain, IconKind.Layout };
+    private static readonly string[] LeftTabs = { "Hierarchy", "UI" };
+    private static readonly IconKind[] LeftIcons = { IconKind.Scene, IconKind.Layout };
+    private static readonly string[] RightTabs = { "Inspector", "Render" };
+    private static readonly IconKind[] RightIcons = { IconKind.Select, IconKind.Camera };
 
-    private const int LeftUi = 3;
-    private const int RightInspector = 0, RightTerrain = 4, RightUi = 5;
+    private const int LeftUi = 1;
+    private const int RightInspector = 0;
 
-    private float _leftWidth = 290f, _rightWidth = 360f, _bottomHeight = 190f;
+    private float _leftWidth = 280f, _rightWidth = 360f, _bottomHeight = 240f;
     private int _leftTab, _rightTab;
     private EditorTool _lastTool = EditorTool.Select;
+    private string _hierarchyFilter = "";
 
     /// <summary>True while the UI designer is in front: the viewport edits the game UI instead of the 3D scene.</summary>
-    private bool UiMode => _leftTab == LeftUi || _rightTab == RightUi;
+    private bool UiMode => _leftTab == LeftUi;
 
     // ---- the whole layout ------------------------------------------------------------------------
 
@@ -37,23 +41,22 @@ public sealed partial class MapEditor
         var size = g.DisplaySize;
         _leftWidth = Math.Clamp(_leftWidth, 220f, MathF.Max(220f, size.X * 0.4f));
         _rightWidth = Math.Clamp(_rightWidth, 260f, MathF.Max(260f, size.X * 0.45f));
-        _bottomHeight = Math.Clamp(_bottomHeight, 90f, MathF.Max(90f, size.Y * 0.5f));
+        _bottomHeight = Math.Clamp(_bottomHeight, 120f, MathF.Max(120f, size.Y * 0.6f));
 
-        // Switching tools to the terrain brush shows its panel, and the other way round.
+        // Switching to the terrain brush shows its settings in the Inspector.
         if (Tool != _lastTool)
         {
-            if (Tool == EditorTool.Terrain) _rightTab = RightTerrain;
-            else if (_rightTab == RightTerrain) _rightTab = RightInspector;
+            if (Tool == EditorTool.Terrain) _rightTab = RightInspector;
             _lastTool = Tool;
         }
-        if (SelectedLight != null && _rightTab == RightUi && !UiMode) _rightTab = RightInspector;
 
+        // Unity's arrangement: the Inspector runs the full height on the right, the bottom panel spans everything left of it.
         float bodyTop = ToolbarHeight;
         float bodyHeight = size.Y - bodyTop;
-        var left = new UiRect(0f, bodyTop, _leftWidth, bodyHeight);
         var right = new UiRect(size.X - _rightWidth, bodyTop, _rightWidth, bodyHeight);
-        var bottom = new UiRect(left.Right, size.Y - _bottomHeight, size.X - _leftWidth - _rightWidth, _bottomHeight);
-        _window.Viewport = new UiRect(left.Right, bodyTop, bottom.Width, bodyHeight - _bottomHeight);
+        var bottom = new UiRect(0f, size.Y - _bottomHeight, right.X, _bottomHeight);
+        var left = new UiRect(0f, bodyTop, _leftWidth, bottom.Y - bodyTop);
+        _window.Viewport = new UiRect(left.Right, bodyTop, right.X - left.Right, left.Height);
 
         const WindowFlags dock = WindowFlags.Fixed | WindowFlags.Panel;
         if (g.Begin("Toolbar", new UiRect(0f, 0f, size.X, ToolbarHeight), dock | WindowFlags.NoScroll)) DrawToolbar();
@@ -63,7 +66,8 @@ public sealed partial class MapEditor
         {
             _leftTab = g.TabBar("lefttabs", LeftTabs, _leftTab, LeftIcons, compact: true);
             g.Spacing(4f);
-            DrawLeftTab();
+            if (UiMode) DrawUiTree();
+            else DrawHierarchy();
         }
         g.End();
 
@@ -71,16 +75,16 @@ public sealed partial class MapEditor
         {
             _rightTab = g.TabBar("righttabs", RightTabs, _rightTab, RightIcons, compact: true);
             g.Spacing(4f);
-            DrawRightTab();
+            if (_rightTab == RightInspector) DrawInspectorPanel();
+            else _window.DebugUI.DrawRender();
         }
         g.End();
 
-        if (g.Begin("Bottom", bottom, dock | WindowFlags.NoScroll)) DrawOutput();
-        g.End();
+        DrawBottomPanel(bottom, dock);
 
-        g.Splitter("left", new UiRect(left.Right - SplitterThickness * 0.5f, bodyTop, SplitterThickness, bodyHeight), true, ref _leftWidth, 220f, size.X * 0.4f, 1f);
+        g.Splitter("left", new UiRect(left.Right - SplitterThickness * 0.5f, bodyTop, SplitterThickness, left.Height), true, ref _leftWidth, 220f, size.X * 0.4f, 1f);
         g.Splitter("right", new UiRect(right.X - SplitterThickness * 0.5f, bodyTop, SplitterThickness, bodyHeight), true, ref _rightWidth, 260f, size.X * 0.45f, -1f);
-        g.Splitter("bottom", new UiRect(bottom.X, bottom.Y - SplitterThickness * 0.5f, bottom.Width, SplitterThickness), false, ref _bottomHeight, 90f, size.Y * 0.5f, -1f);
+        g.Splitter("bottom", new UiRect(bottom.X, bottom.Y - SplitterThickness * 0.5f, bottom.Width, SplitterThickness), false, ref _bottomHeight, 120f, size.Y * 0.6f, -1f);
 
         DrawViewportOverlay();
         DrawUiSelection();
@@ -99,13 +103,13 @@ public sealed partial class MapEditor
             if (g.IconTextButton(IconKind.Stop, "Stop", 96f, ButtonStyle.Danger)) Stop();
         }
         else if (g.IconTextButton(IconKind.Play, "Play", 96f, ButtonStyle.Primary)) Play();
-        g.Tooltip("Run the scripts and the game UI. Stop restores the scene.");
+        g.Tooltip("Run the scripts and the game UI in the open scene. Stop restores every scene.");
 
         g.SameLine();
         if (Playing)
         {
             var game = _window.Game;
-            if (g.IconTextButton(game.ViewDetached ? IconKind.Camera : IconKind.Eye, game.ViewDetached ? "Player view" : "Free view", 120f))
+            if (g.IconTextButton(game.ViewDetached ? IconKind.Camera : IconKind.Eye, game.ViewDetached ? "Player view" : "Free view", 140f))
                 game.ViewDetached = !game.ViewDetached;
             g.Tooltip(game.ViewDetached
                 ? "Back to the game camera (what the player sees)."
@@ -114,7 +118,7 @@ public sealed partial class MapEditor
         else
         {
             if (g.IconTextButton(IconKind.Compile, "Compile", 120f)) Compile();
-            g.Tooltip("Compile the scripts, then write the game into Generated/GeneratedGame/ (several files, with the models, textures and sounds it needs).\nRun it with: dotnet run -- --generated");
+            g.Tooltip("Compile the scripts, then write the game (every scene) into Generated/GeneratedGame/,\nwith the models, textures and sounds it needs. Run it with: dotnet run -c Game");
         }
 
         g.SameLine();
@@ -130,7 +134,7 @@ public sealed partial class MapEditor
         g.VerticalSeparator();
 
         g.SameLine();
-        if (g.Button(Space == GizmoSpace.World ? "World" : "Local", 70f)) Space = Space == GizmoSpace.World ? GizmoSpace.Local : GizmoSpace.World;
+        if (g.Button(Space == GizmoSpace.World ? "World" : "Local", 76f)) Space = Space == GizmoSpace.World ? GizmoSpace.Local : GizmoSpace.World;
         g.Tooltip("Gizmo orientation: world axes or the object's own axes.");
 
         g.SameLine();
@@ -148,13 +152,19 @@ public sealed partial class MapEditor
         DrawSettingsPopup();
 
         g.SameLine();
-        string status = SelectedLight != null ? $"Light: {SelectedLight.Name}"
-            : Selected != null ? $"Selected: {Selected.Name}"
-            : SelectedUi != null ? $"UI: {SelectedUi.Name}"
-            : VolumeSelected ? "Main Volume" : "Nothing selected";
         var statusRect = g.Reserve(0f, g.Theme.ButtonHeight);
-        g.LabelRect(statusRect.Deflate(8f, 0f), status, g.Theme.TextDim, g.Theme.FontSize, FontWeight.Regular, TextAlign.Left);
+        g.LabelRect(statusRect.Deflate(8f, 0f), $"{Scene.Name}  ·  {SelectionName()}", g.Theme.TextDim, g.Theme.FontSize, FontWeight.Regular, TextAlign.Left);
     }
+
+    private string SelectionName() =>
+        SelectedLight != null ? $"Light: {SelectedLight.Name}"
+        : SelectedWater != null ? $"Water: {SelectedWater.Name}"
+        : SelectedSound != null ? $"Sound: {SelectedSound.Name}"
+        : Selected != null ? Selected.Name
+        : SelectedUi != null ? $"UI: {SelectedUi.Name}"
+        : VolumeSelected ? "Volume"
+        : EnvironmentSelected ? "Environment"
+        : "Nothing selected";
 
     private void ToolButton(IconKind icon, string tip, EditorTool tool)
     {
@@ -164,7 +174,7 @@ public sealed partial class MapEditor
         {
             Tool = tool;
             if (UiMode) _leftTab = 0; // the 3D tools only make sense on the scene
-            if (UiMode) _rightTab = RightInspector;
+            _rightTab = RightInspector;
         }
         g.Tooltip(tip);
     }
@@ -172,7 +182,7 @@ public sealed partial class MapEditor
     private void DrawSettingsPopup()
     {
         var g = G;
-        if (!g.BeginPopup("##settings", 330f)) return;
+        if (!g.BeginPopup("##settings", 340f)) return;
 
         g.Heading("Editor settings");
         string editor = Settings.ExternalEditor;
@@ -202,7 +212,7 @@ public sealed partial class MapEditor
         const WindowFlags flags = WindowFlags.Fixed | WindowFlags.NoBackground | WindowFlags.NoScroll | WindowFlags.ClickThrough;
         if (g.Begin("##vpoverlay", vp, flags))
         {
-            string hint = Playing ? "PLAYING" : UiMode ? "UI designer: click to select, drag to move, corner to resize"
+            string hint = Playing ? $"PLAYING  {Scene.Name}" : UiMode ? "UI designer: click to select, drag to move, corner to resize"
                 : Tool == EditorTool.Terrain ? "Terrain brush: left-drag to sculpt" : "RMB + WASD fly   F focus   Del delete   Ctrl+D duplicate";
             var chip = new UiRect(vp.X + 12f, vp.Bottom - 38f, g.MeasureText(hint, 12f, FontWeight.Medium) + 24f, 26f);
             g.PanelRect(chip, Playing ? new SKColor(220, 70, 70, 230) : new SKColor(10, 12, 16, 170), 13f, SKColors.Transparent);
@@ -211,52 +221,80 @@ public sealed partial class MapEditor
         g.End();
     }
 
-    // ---- left dock -------------------------------------------------------------------------------
+    // ---- hierarchy: everything in the open scene, in one list ------------------------------------
 
-    private void DrawLeftTab()
-    {
-        switch (_leftTab)
-        {
-            case 0: DrawSceneTab(); break;
-            case 1: DrawAssets(); break;
-            case 2: DrawCode(); break;
-            default: DrawUiTree(); break;
-        }
-    }
-
-    private void DrawSceneTab()
+    private void DrawHierarchy()
     {
         var g = G;
-        g.SeparatorText("Global");
-        if (g.Selectable("Main Volume", VolumeSelected, IconKind.Camera)) SelectVolume();
-        g.Tooltip("Post-processing: tone mapping, bloom, depth of field, colour correction, sharpening...");
 
-        g.SeparatorText("Objects");
+        // The open scene (its menu switches, adds and renames scenes) and the Create menu.
+        if (g.IconTextButton(IconKind.Scene, Scene.Name + "##scenebutton", MathF.Max(120f, g.RemainingWidth - g.Theme.ButtonHeight - 8f)))
+            g.TogglePopup("##scenemenu", g.LastItemRect);
+        g.Tooltip("The open scene. Click to open another one, add a scene or rename this one.");
+        DrawSceneMenu();
+        g.SameLine();
+        if (g.IconButton(IconKind.Plus, "create")) g.TogglePopup("##create", g.LastItemRect);
+        g.Tooltip("Create: shapes, lights, water, player, camera, sound...");
+        DrawCreateMenu();
+
+        g.InputTextBare("##hierarchyfilter", ref _hierarchyFilter, "Search the scene");
+        g.Spacing(2f);
+
+        if (Matches("Volume") && g.Selectable("Volume##volume", VolumeSelected, IconKind.Camera)) SelectVolume();
+        g.Tooltip("This scene's post-processing: tone mapping, bloom, depth of field, colour grading... (each scene has its own)");
+        if (Matches("Environment") && g.Selectable("Environment##environment", EnvironmentSelected, IconKind.Cloud)) SelectEnvironment();
+        g.Tooltip("Sun and time of day, sky and clouds, rain, fog and ambient light.");
+
         foreach (var root in Scene.Roots.ToArray()) DrawSceneNode(root);
 
-        g.SeparatorText("Lights");
-        if (Scene.PointLights.Count == 0 && Scene.Spot == null) g.TextDim("No point lights.");
-        foreach (var light in Scene.PointLights.ToArray())
-            if (g.Selectable($"{light.Name}##pl{Scene.PointLights.IndexOf(light)}", SelectedLight == light, IconKind.Light)) SelectLight(light);
-        if (Scene.Spot is { } spot && g.Selectable("Spot light", SelectedLight == spot, IconKind.Light)) SelectLight(spot);
-        if (Scene.Waters.Count > 0)
+        for (int i = 0; i < Scene.PointLights.Count; i++)
         {
-            g.SeparatorText("Water");
-            foreach (var water in Scene.Waters)
-            {
-                if (g.Selectable(water.Name + "##w" + water.GetHashCode(), water == SelectedWater, IconKind.Water)) SelectWater(water);
-                if (g.LastItemDoubleClicked && water == SelectedWater) FocusSelection();
-            }
+            var light = Scene.PointLights[i];
+            if (Matches(light.Name) && g.Selectable($"{light.Name}##pl{i}", SelectedLight == light, IconKind.Light)) SelectLight(light);
+            if (g.LastItemDoubleClicked && SelectedLight == light) FocusSelection();
+        }
+        if (Scene.Spot is { } spot && Matches("Spot light"))
+        {
+            if (g.Selectable("Spot light##spot", SelectedLight == spot, IconKind.Light)) SelectLight(spot);
+            if (g.LastItemDoubleClicked && SelectedLight == spot) FocusSelection();
+        }
+        foreach (var water in Scene.Waters)
+        {
+            if (!Matches(water.Name)) continue;
+            if (g.Selectable(water.Name + "##w" + water.GetHashCode(), water == SelectedWater, IconKind.Water)) SelectWater(water);
+            if (g.LastItemDoubleClicked && water == SelectedWater) FocusSelection();
+        }
+        for (int i = 0; i < Scene.Sounds.Count; i++)
+        {
+            var sound = Scene.Sounds[i];
+            if (Matches(sound.Name) && g.Selectable($"{sound.Name}##snd{i}", sound == SelectedSound, IconKind.Sound)) SelectSound(sound);
         }
     }
+
+    private bool Matches(string name) =>
+        _hierarchyFilter.Trim().Length == 0 || name.Contains(_hierarchyFilter.Trim(), StringComparison.OrdinalIgnoreCase);
 
     private void DrawSceneNode(GameObject obj)
     {
         if (obj.EditorOnly) return;
         var g = G;
-        bool open = g.TreeNode($"{obj.Name}##{obj.Id}", obj == Selected, out bool clicked, obj.Children.Count == 0,
-            obj.Children.Count > 0 ? IconKind.Folder : Scene.Terrains.Any(t => t.Object == obj) ? IconKind.Terrain : IconKind.Cube, defaultOpen: true);
+        bool filtering = _hierarchyFilter.Trim().Length > 0;
+        if (filtering)
+        {
+            // Searching: matching objects as a flat list.
+            if (Matches(obj.Name))
+            {
+                if (g.Selectable($"{obj.Name}##{obj.Id}", obj == Selected, IconFor(obj))) Selected = obj;
+                AcceptScriptDrop(obj);
+                if (g.LastItemDoubleClicked && obj == Selected) FocusSelection();
+            }
+            foreach (var child in obj.Children.ToArray()) DrawSceneNode(child);
+            return;
+        }
+
+        bool open = g.TreeNode($"{obj.Name}##{obj.Id}", obj == Selected, out bool clicked, obj.Children.Count == 0, IconFor(obj), defaultOpen: true);
         if (clicked) Selected = obj;
+        AcceptScriptDrop(obj);
         if (g.LastItemDoubleClicked && obj == Selected) FocusSelection();
         if (!open) return;
 
@@ -264,338 +302,93 @@ public sealed partial class MapEditor
         g.TreePop();
     }
 
-    // ---- assets ----------------------------------------------------------------------------------
+    private IconKind IconFor(GameObject obj) =>
+        Scene.Terrains.Any(t => t.Object == obj) ? IconKind.Terrain
+        : obj.Scripts.Any(s => s.GetType().Name == "GameCamera") ? IconKind.Camera
+        : obj.Children.Count > 0 ? IconKind.Folder
+        : IconKind.Cube;
 
-    private sealed record PaletteItem(string Name, string Kind, Func<Mesh>? Make, string? Path);
-
-    private static readonly PaletteItem[] Primitives =
-    {
-        new("Cube", "primitive", () => Utils.Primitives.Cube(1f), null),
-        new("Sphere", "primitive", () => Utils.Primitives.Sphere(0.5f, 32), null),
-        new("Plane", "primitive", () => Utils.Primitives.Plane(4f, 4f, 1), null),
-        new("Cylinder", "primitive", () => Utils.Primitives.Cylinder(0.5f, 1f, 32), null),
-        new("Cone", "primitive", () => Utils.Primitives.Cone(0.5f, 1f, 32), null),
-        new("Capsule", "primitive", () => Utils.Primitives.Capsule(0.35f, 1.5f, 24), null),
-        new("Torus", "primitive", () => Utils.Primitives.Torus(0.6f, 0.2f, 40, 20), null),
-    };
-
-    private List<string> _modelFiles = new();
-    private DateTime _lastModelScan = DateTime.MinValue;
-    private int _assetTab;
-
-    private void DrawAssets()
+    /// <summary>A script dragged from the Project panel and released on this row is attached to the object.</summary>
+    private void AcceptScriptDrop(GameObject obj)
     {
         var g = G;
-        _assetTab = g.TabBar("assettabs", new[] { "Shapes", "Models", "Prefabs", "World" }, _assetTab);
-        g.Spacing(4f);
+        if (g.IsLastItemHovered && g.TryGetDrop(out var payload, out _) && payload is PaletteItem { Kind: "script" } script)
+            AttachScript(obj, script);
+    }
 
-        switch (_assetTab)
+    /// <summary>Unity's "+" menu: everything that can be added to the scene.</summary>
+    private void DrawCreateMenu()
+    {
+        var g = G;
+        if (!g.BeginPopup("##create", 230f, 520f)) return;
+        var front = _window.Camera.Position + _window.Camera.Front * 6f;
+
+        g.SeparatorText("3D object");
+        foreach (var item in Primitives)
+            if (g.MenuItem(item.Name + "##create", icon: item.Name == "Sphere" ? IconKind.Sphere : IconKind.Cube)) Spawn(item, front);
+
+        g.SeparatorText("World");
+        if (g.MenuItem("Point light", icon: IconKind.Light)) AddPointLight();
+        if (g.MenuItem("Water (lake)", icon: IconKind.Water)) AddWater();
+        if (g.MenuItem("Terrain brush", "T", icon: IconKind.Terrain)) Tool = EditorTool.Terrain;
+
+        g.SeparatorText("Gameplay");
+        if (g.MenuItem("Player (capsule)", icon: IconKind.Sphere)) AddPlayer();
+        if (g.MenuItem("Camera", icon: IconKind.Camera)) AddCamera();
+
+        g.SeparatorText("Audio");
+        if (g.MenuItem("Sound", icon: IconKind.Sound))
         {
-            case 0:
-                g.TextWrapped("Click to add in front of the camera, or drag into the scene.", dim: true);
-                g.Spacing(2f);
-                bool first = true;
-                foreach (var item in Primitives) PaletteButton(item, ref first);
-                break;
-
-            case 1:
-                g.TextWrapped("Drop .fbx / .gltf / .glb / .obj files from your file manager onto the window: they load from " +
-                              "where they are (textures included) and are copied into Assets/Models on Compile.", dim: true);
-                g.Spacing(2f);
-                RefreshModelList();
-                if (_modelFiles.Count == 0) g.TextDim("No models in Assets/Models yet.");
-                first = true;
-                foreach (var file in _modelFiles)
-                    PaletteButton(new PaletteItem(Path.GetFileNameWithoutExtension(file), "model", null, file), ref first);
-                break;
-
-            case 2:
-                g.TextWrapped("Reusable objects: select something in the scene and press 'Save as prefab' in the Inspector. " +
-                              "Click a prefab to add it in front of the camera, or drag it into the scene. Scripts spawn " +
-                              "them with Game.SpawnPrefab(\"Name\", position).", dim: true);
-                g.Spacing(2f);
-                if (Prefabs.Names.Count == 0) g.TextDim("No prefabs yet (they are saved in Prefabs/).");
-                first = true;
-                foreach (var name in Prefabs.Names) PaletteButton(new PaletteItem(name, "prefab", null, name), ref first);
-                break;
-
-            default:
-                if (g.IconTextButton(IconKind.Sphere, "Player (capsule)")) AddPlayer();
-                g.Tooltip("A capsule tagged 'Player' with the PlayerController script: WASD/arrows walk, Space jumps.\nAdds a game camera too if the scene has none.");
-                if (g.IconTextButton(IconKind.Camera, "Camera")) AddCamera();
-                g.Tooltip("The game camera: what the player sees when you press Play. Follows the object tagged 'Player'\n(third person, first person or top-down), or stays where you put it (Fixed). Settings in the Inspector.");
-                if (g.IconTextButton(IconKind.Light, "Point light")) AddPointLight();
-                if (g.IconTextButton(IconKind.Water, "Water (lake)")) AddWater();
-                g.DragSource("Water", new PaletteItem("Water", "water", null, null));
-                g.Tooltip("Click: a lake in front of the camera. Or drag it into the viewport to place it.\n" +
-                          "On a terrain it digs its own basin. Then move it with W and resize it with R.");
-                if (g.IconTextButton(IconKind.Terrain, "Terrain...")) Tool = EditorTool.Terrain;
-                g.Spacing(4f);
-                g.TextWrapped("Lights are edited in the Inspector and the Lighting tab; water in the Water tab. " +
-                              "The player and camera are driven by Scripts/PlayerController.cs and Scripts/GameCamera.cs: " +
-                              "tune them in the Inspector or edit the code.", dim: true);
-                break;
+            var sound = new Sound { Name = $"Sound {Scene.Sounds.Count + 1}", Position = front };
+            Scene.Add(sound);
+            SelectSound(sound);
+            Say("Added an empty sound: set its file in the Inspector, or drag a sound from the Project panel into the scene.");
         }
+        g.EndPopup();
     }
 
-    /// <summary>Palette buttons flow left to right and wrap at the edge of the panel.</summary>
-    private void PaletteButton(PaletteItem item, ref bool first)
+    // ---- inspector: whatever is selected ---------------------------------------------------------
+
+    private void DrawInspectorPanel()
     {
         var g = G;
-        float width = g.MeasureText(item.Name, 0f, FontWeight.Medium) + 28f;
-        if (!first)
+        if (UiMode)
         {
-            if (g.RemainingWidth >= width) g.SameLine();
-            else g.NewLine();
+            DrawUiProperties();
+            return;
         }
-        first = false;
-
-        if (g.Button(item.Name, width)) Spawn(item, _window.Camera.Position + _window.Camera.Front * 6f);
-        g.DragSource(item.Name, item);
-    }
-
-    /// <summary>A palette item released over the viewport (not over a panel) is spawned where the mouse points.</summary>
-    private void HandlePaletteDrop()
-    {
-        if (!G.TryGetDrop(out var payload, out bool overUi) || payload is not PaletteItem item) return;
-        if (overUi || !_window.Viewport.Contains(_window.MousePosition)) return;
-        Spawn(item, _window.GetMouseWorldPosition());
-    }
-
-    private void RefreshModelList()
-    {
-        if ((DateTime.Now - _lastModelScan).TotalSeconds < 3) return;
-        _lastModelScan = DateTime.Now;
-
-        string root = Paths?.Models ?? Path.Combine(AppContext.BaseDirectory, "Assets", "Models");
-        _modelFiles = Directory.Exists(root)
-            ? Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories).Where(ModelImporter.IsModelFile)
-                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList()
-            : new List<string>();
-    }
-
-    // ---- scripts ---------------------------------------------------------------------------------
-
-    private string _newScriptName = "MyScript";
-    private string? _selectedScript;
-
-    // ---- the Code tab: C# scripts, shaders and the API reference ---------------------------------
-
-    private int _codeTab;
-    private string _newShaderName = "MyShader";
-    private string _apiFilter = "";
-    private ApiReference? _api;
-
-    private void DrawCode()
-    {
-        var g = G;
-        _codeTab = g.TabBar("codetabs", new[] { "Scripts", "Shaders", "API" }, _codeTab);
-        g.Spacing(2f);
-        switch (_codeTab)
+        if (Tool == EditorTool.Terrain && !Playing)
         {
-            case 0: DrawScripts(); break;
-            case 1: DrawShaders(); break;
-            default: DrawApi(); break;
-        }
-    }
-
-    /// <summary>Custom shaders: .shader files in Shaders/Custom, written in the small GT67 shader language.</summary>
-    private void DrawShaders()
-    {
-        var g = G;
-        if (Paths == null)
-        {
-            g.TextStatus("Project folder not found: shaders cannot be edited.", true);
+            DrawTerrainPanel();
             return;
         }
 
-        var library = _window.Renderer.Custom;
-        string folder = Path.Combine(Paths.Root, "Shaders", "Custom");
-        library.AddDirectory(folder, first: true);
-
-        g.TextWrapped("A shader is a few lines in a .shader file: 'param' lines you can change per object, and a 'surface' block " +
-                      "(GLSL) that sets albedo, emission, shininess and specular. It reloads when you save. " +
-                      "Pick it for an object in the Inspector > Shader.", dim: true);
-        g.Spacing(2f);
-
-        g.SeparatorText("New shader");
-        g.InputTextBare("##newshader", ref _newShaderName, "Name");
-        if (g.IconTextButton(IconKind.Plus, "Create and open", 0f, ButtonStyle.Primary))
+        if (VolumeSelected)
         {
-            string name = new string(_newShaderName.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
-            string path = Path.Combine(folder, name + ShaderLibrary.Extension);
-            if (name.Length == 0 || char.IsDigit(name[0])) Say("Use letters, digits and _ (not starting with a digit).", error: true);
-            else if (File.Exists(path)) Say($"{name}{ShaderLibrary.Extension} already exists.", error: true);
-            else
+            g.Heading("Volume");
+            g.TextWrapped($"Post-processing of the scene '{Scene.Name}'. Every scene has its own: opening another scene (or Game.LoadScene) switches to its settings.", dim: true);
+            _window.DebugUI.DrawVolume();
+        }
+        else if (EnvironmentSelected)
+        {
+            g.Heading("Environment");
+            g.TextWrapped($"Sun, sky, clouds, rain, fog and ambient light of the scene '{Scene.Name}'.", dim: true);
+            _window.DebugUI.DrawEnvironment();
+        }
+        else if (SelectedLight != null) DrawLightInspector(SelectedLight);
+        else if (SelectedWater != null) DrawWaterInspector(SelectedWater);
+        else if (SelectedSound is { } sound)
+        {
+            if (!Scene.Sounds.Contains(sound))
             {
-                Directory.CreateDirectory(folder);
-                File.WriteAllText(path, ShaderLibrary.Template(name));
-                Say($"Created {name}{ShaderLibrary.Extension}.");
-                OpenInEditor(path);
+                SelectedSound = null;
+                return;
             }
+            g.Heading(sound.Name);
+            g.TextDim("Sound");
+            if (!_window.DebugUI.DrawSoundSettings(sound)) SelectedSound = null;
         }
-
-        g.SeparatorText("Shaders");
-        foreach (var shader in library.Shaders.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            if (g.Selectable(shader.Name + "##shader", false, IconKind.File)) { }
-            if (g.LastItemDoubleClicked) OpenInEditor(shader.File);
-            if (shader.Error != null) g.TextStatus(shader.Error, true);
-        }
-        if (!library.Shaders.Any()) g.TextDim("No shaders yet.");
-        else g.TextDim("Double-click a shader to open it.");
-    }
-
-    /// <summary>The scripting API as a searchable list, with the descriptions from the source comments.</summary>
-    private void DrawApi()
-    {
-        var g = G;
-        _api ??= new ApiReference();
-        g.TextWrapped("What your C# scripts can use. Search for a word like 'rain', 'sound' or 'position'.", dim: true);
-        g.InputTextBare("##apifilter", ref _apiFilter, "Search the API");
-        g.Spacing(2f);
-
-        bool filtering = !string.IsNullOrWhiteSpace(_apiFilter);
-        foreach (var type in _api.Search(_apiFilter))
-        {
-            if (!g.CollapsingHeader($"{type.Name}##api{type.Name}", defaultOpen: filtering)) continue;
-            if (type.Summary.Length > 0) g.TextWrapped(type.Summary, dim: true);
-            foreach (var member in type.Members.Take(filtering ? 60 : 200))
-            {
-                g.TextWrapped(member.Signature);
-                if (member.Summary.Length > 0) g.TextWrapped("   " + member.Summary, dim: true);
-            }
-        }
-    }
-
-    private void DrawScripts()
-    {
-        var g = G;
-        if (Paths == null)
-        {
-            g.TextStatus("Project folder not found: scripts cannot be edited.", true);
-            return;
-        }
-
-        g.TextWrapped($"Scripts are edited in {DescribeEditor()} and recompile when you save them.", dim: true);
-        g.Spacing(2f);
-        if (g.IconTextButton(IconKind.Folder, "Open project in editor"))
-            OpenInEditor(Paths.Scripts);
-        g.Spacing(2f);
-
-        g.SeparatorText("New script");
-        g.InputTextBare("##newscript", ref _newScriptName, "Name");
-        if (g.IconTextButton(IconKind.Plus, "Create and open", 0f, ButtonStyle.Primary))
-        {
-            var created = Scripts.CreateScript(_newScriptName, out var error);
-            if (created == null) Say(error, error: true);
-            else
-            {
-                Say($"Created {Path.GetFileName(created)}.");
-                _selectedScript = created;
-                OpenInEditor(created);
-                CompileScripts(announceSuccess: true);
-            }
-        }
-
-        g.SeparatorText("Files");
-        foreach (var file in Scripts.Files)
-        {
-            string name = Path.GetFileName(file);
-            if (name.StartsWith('_')) continue;
-            if (g.Selectable(name + "##script", file == _selectedScript, IconKind.File)) _selectedScript = file;
-            if (g.LastItemDoubleClicked) OpenInEditor(file);
-        }
-        g.TextDim("Double-click a file to open it.");
-
-        g.Spacing(4f);
-        if (g.IconTextButton(IconKind.Refresh, "Recompile now")) CompileScripts(announceSuccess: true);
-        bool auto = Settings.AutoCompile;
-        if (g.Checkbox("Auto-compile on save", ref auto)) Settings.AutoCompile = auto;
-
-        if (Scripts.LastResult is { Success: false } failed)
-        {
-            g.SeparatorText("Errors");
-            foreach (var error in failed.Errors.Take(8)) g.TextStatus(error, true);
-        }
-    }
-
-    private string DescribeEditor() => Settings.ExternalEditor.Trim().ToLowerInvariant() switch
-    {
-        "" or "default" => "your default editor",
-        "code" => "Visual Studio Code",
-        "code-insiders" => "Visual Studio Code Insiders",
-        "rider" => "Rider",
-        _ => Settings.ExternalEditor,
-    };
-
-    private void OpenInEditor(string path)
-    {
-        if (Paths == null) return;
-        if (!ExternalEditor.Open(Settings.ExternalEditor, Paths.Root, path, out var message)) Say(message, error: true);
-        else Say(message);
-    }
-
-    // ---- output ----------------------------------------------------------------------------------
-
-    private void DrawOutput()
-    {
-        var g = G;
-        g.Heading("Output", 70f);
-        g.SameLine();
-        if (g.IconTextButton(IconKind.Trash, "Clear", 90f)) _output.Clear();
-
-        g.BeginChild("outputlist", g.AvailableHeight - 4f, border: true);
-        foreach (var (text, error) in _output)
-        {
-            if (error) g.TextStatus(text, true);
-            else g.TextWrapped(text);
-        }
-        if (_scrollOutput)
-        {
-            g.ScrollToEnd();
-            _scrollOutput = false;
-        }
-        g.EndChild();
-    }
-
-    // ---- inspector -------------------------------------------------------------------------------
-
-    private void DrawRightTab()
-    {
-        var g = G;
-        switch (_rightTab)
-        {
-            case 0:
-                if (VolumeSelected)
-                {
-                    g.Heading("Main Volume");
-                    g.TextDim("Post-processing applied to the whole view");
-                    _window.DebugUI.DrawVolume();
-                }
-                else if (SelectedLight != null) DrawLightInspector(SelectedLight);
-                else if (SelectedWater != null) DrawWaterInspector(SelectedWater);
-                else _window.DebugUI.DrawInspector();
-                break;
-            case 1:
-                if (g.IconTextButton(IconKind.Plus, "Add point light")) AddPointLight();
-                _window.DebugUI.DrawLighting();
-                break;
-            case 2:
-                if (g.IconTextButton(IconKind.Plus, "Add water")) AddWater();
-                _window.DebugUI.DrawWater();
-                break;
-            case 3:
-                _window.DebugUI.DrawRender();
-                if (g.Button("Edit Main Volume...")) SelectVolume();
-                break;
-            case RightTerrain:
-                DrawTerrainPanel();
-                break;
-            default:
-                DrawUiProperties();
-                break;
-        }
+        else _window.DebugUI.DrawInspector();
     }
 
     private void DrawWaterInspector(Water water)
@@ -664,6 +457,11 @@ public sealed partial class MapEditor
     public void DrawInspectorExtras(GameObject obj)
     {
         var g = G;
+        if (Scene.Terrains.Any(t => t.Object == obj))
+        {
+            g.SeparatorText("Terrain");
+            if (g.IconTextButton(IconKind.Terrain, "Sculpt and paint (T)", 0f, ButtonStyle.Primary)) Tool = EditorTool.Terrain;
+        }
         DrawPrefabSection(obj);
 
         g.SeparatorText("Collision");
@@ -693,7 +491,7 @@ public sealed partial class MapEditor
 
         if (Scripts.Types.Count == 0)
         {
-            g.TextDim("No scripts compiled yet (see the Scripts tab).");
+            g.TextDim("No scripts compiled yet (Project > Scripts, or the Console for errors).");
         }
         else
         {
@@ -762,7 +560,7 @@ public sealed partial class MapEditor
             if (string.Equals(clean, obj.PrefabName, StringComparison.OrdinalIgnoreCase)) ApplyToPrefab(obj, clean);
             else SaveAsPrefab(obj, clean);
         }
-        g.Tooltip("Save this object, its children and scripts as Prefabs/<name>.prefab, to place copies from Assets > Prefabs\nor spawn them from scripts with Game.SpawnPrefab(\"name\", position).");
+        g.Tooltip("Save this object, its children and scripts as Prefabs/<name>.prefab, to place copies from Project > Prefabs\nor spawn them from scripts with Game.SpawnPrefab(\"name\", position).");
         if (replaces) g.TextStatus($"A prefab called '{clean}' exists: it will be replaced.", true);
     }
 

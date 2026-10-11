@@ -11,7 +11,7 @@ public static class EnvironmentExporter
     public static string Write(ExportContext context)
     {
         var scene = context.Scene;
-        var w = new CodeWriter("The weather, sky and lights of the game.");
+        var w = new CodeWriter("The weather, sky and lights of the game.", context.Namespace);
 
         w.Line("/// <summary>Sun, rain, fog, ambient light, sky, clouds and lights.</summary>");
         w.Open("public static class EnvironmentGenerator");

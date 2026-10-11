@@ -1,7 +1,7 @@
 # GT67 — small OpenGL engine boilerplate (C# / .NET 8)
 
 OpenTK 4 (OpenGL 4.1 core, macOS-compatible), Silk.NET.Assimp for models, StbImageSharp for textures,
-SkiaSharp (draws the UI with the bundled Inter font), and Roslyn (`Microsoft.CodeAnalysis.CSharp`) for the editor's live
+SkiaSharp (draws the UI with the bundled JetBrains Mono font; Inter is bundled too, see `UiFonts.Family`), and Roslyn (`Microsoft.CodeAnalysis.CSharp`) for the editor's live
 script compiling. No other dependencies.
 
 ## Run
@@ -97,19 +97,36 @@ to the demo, put back the placeholder `GeneratedMap.cs` (`IsGenerated = false`).
 |---|---|
 | **Fly** | hold the right mouse button and use WASD / QE, Shift to sprint, scroll to zoom |
 | **Import models** | drop `.fbx` `.gltf` `.glb` `.obj` `.dae` files from your file manager onto the window; they load from where they are and are copied into `Assets/Models/` on Compile |
-| **Add shapes** | click a shape in the **Assets** tab or drag it into the viewport (it lands where the mouse points) |
-| **Select** | click an object or light in the viewport, or pick it in the **Scene** tab; the **Inspector** edits its transform, material, collision mode and scripts |
+| **Add things** | the **+** button of the **Hierarchy** (shapes, point light, water, player, camera, sound), or drag a tile from the **Project** panel into the viewport (it lands where the mouse points) |
+| **Select** | click an object or light in the viewport, or pick anything in the **Hierarchy**: objects, lights, water, sounds, the scene's **Volume** (post-processing) and **Environment** (sun, sky, rain, fog). The **Inspector** edits whatever is selected |
 | **Move / Rotate / Scale** | tools **W / E / R** (Q = select). **Drag an object itself** to slide it over the ground (Shift + drag = up/down; works with Q and W). Arrows move along one axis, rings rotate, cube handles scale per axis and the centre cube scales uniformly. The toolbar switches World/Local axes and turns on **Snap** (moves land on the grid; steps in the gear menu) |
-| **Player and camera** | **Assets > World > Player** adds a capsule tagged `Player` that walks with WASD/arrows (Shift runs, Space jumps), plus a **Camera** that follows it; **Camera** adds one on its own. Pick the camera's **Mode** in the Inspector: ThirdPerson, FirstPerson, TopDown or Fixed |
+| **Player and camera** | **Hierarchy > + > Player** adds a capsule tagged `Player` that walks with WASD/arrows (Shift runs, Space jumps), plus a **Camera** that follows it; **Camera** adds one on its own. Pick the camera's **Mode** in the Inspector: ThirdPerson, FirstPerson, TopDown or Fixed |
 | **Player view** | **Play** looks through the game camera; **Free view** in the toolbar flies around while the game runs, **Player view** goes back. Stop puts your editor camera back |
-| **Lighting** | the **Lighting** tab edits the sun (time of day, latitude, season), ambient, physical sky, clouds and every point/spot light; lights have a marker in the viewport you can pick and move |
-| **Render** | the **Render** tab: shadows, skybox, tone mapping, exposure and every post-processing effect's settings |
-| **Delete / Duplicate / Focus** | `Del` / `Ctrl+D` / `F` (or double-click in the Scene tab) |
-| **Scripts** | the **Scripts** tab creates scripts and opens them in your own editor (below) |
-| **Game UI** | the **UI** tabs design the game's HUD and menus (below) |
+| **Lighting** | select **Environment** in the Hierarchy for the sun (time of day, latitude, season), ambient, physical sky, clouds, rain and fog; every point/spot light is in the Hierarchy too, with a marker in the viewport you can pick and move |
+| **Render** | the scene's **Volume** (Hierarchy) holds tone mapping, exposure and every post-processing effect; the **Render** tab next to the Inspector has shadows, skybox, VSync and quality |
+| **Delete / Duplicate / Focus** | `Del` / `Ctrl+D` / `F` (or double-click in the Hierarchy) |
+| **Scripts** | **Project > Scripts** (bottom panel) creates scripts and opens them in your own editor (below); drag a script onto an object, in the viewport or the Hierarchy, to attach it |
+| **Scenes** | the scene button at the top of the Hierarchy opens, adds, renames and deletes scenes (below) |
+| **Game UI** | the **UI** tab next to the Hierarchy designs the game's HUD and menus (below) |
 | **Terrain** | the Terrain tool (below) |
 
-The panels are docked around the viewport; drag the thin bars between them to resize.
+Like Unity, the **Hierarchy** is on the left, the **Inspector** on the right, and the **Project** browser (shapes, models,
+prefabs, scripts, shaders, sounds), the **Console** and the **API** reference along the bottom; drag the thin bars between
+them to resize.
+
+### Scenes
+
+A game has one or more scenes, each with its own environment, objects, sounds and **Volume** (post-processing). The scene
+button at the top of the Hierarchy switches between them, adds new ones, renames them and picks the one the game starts
+with. Compile writes every scene (`Generated/GeneratedGame/Scenes/<Name>/`). Scripts switch scenes like Unity's
+SceneManager; the new scene starts fresh at the end of the frame:
+
+```csharp
+Game.LoadScene("Level 2");     // Game.ReloadScene() starts the current one again
+Game.Log(Game.SceneName);      // Game.SceneNames lists them all
+```
+
+`dotnet run -c Game -- --scene "Level 2"` starts the compiled game in another scene, to test it.
 
 ### Editing scripts in Visual Studio Code
 
@@ -122,7 +139,7 @@ The check for saved files runs while the editor window is drawn, so it recompile
 
 ### Designing the game's UI
 
-Open the **UI** tab on either side. Add a Panel, Label, Button, Progress bar, Slider, Check box, Text box or Image (or a
+Open the **UI** tab next to the Hierarchy. Add a Panel, Label, Button, Progress bar, Slider, Check box, Text box or Image (or a
 ready-made HUD / Menu preset), click it in the viewport to select it, drag it to move it and drag its corner to resize it
 (`Snap` rounds to 8 px). Elements nest inside panels and are placed from an **anchor** of their parent (corners, edges,
 centre or stretch) plus an offset, so they stay in place at any window size; *UI scale* enlarges everything. The properties
@@ -143,7 +160,7 @@ Game.Ui.Find("Volume").Changed += e => volume = e.Value;                      //
 
 `Program.cs` builds a small HUD and menu in code (`BuildDemoUi`) for the demo scene.
 
-Not saved in the map: C# lambdas set in code (`OnUpdate`, `OnKeyDown`...). The Main Volume (post-processing) is saved; the effects themselves are added in
+Not saved in the map: C# lambdas set in code (`OnUpdate`, `OnKeyDown`...). Each scene's Volume (post-processing settings) is saved; the effects themselves are added in
 `Program.cs`. Everything else in the scene is written, including objects you created in code.
 
 ## Importing models (FBX, glTF, OBJ...) and collisions
@@ -492,7 +509,7 @@ scene.Add(lake);
 into the viewport to place it. On a terrain it digs its own basin; elsewhere it sits just above the ground. The new
 water is selected: move it with **W** (the up arrow changes its level), resize it with **R** (or type Width / Depth in
 the Inspector), **Dig basin** lowers the terrain under it to match a new size, **Del** removes it. Click a water surface
-in the viewport (or in the Scene tab) to select it again.
+in the viewport (or in the Hierarchy) to select it again.
 
 **Sea to the horizon**: tick **Reach horizon** (`ReachHorizon = true`): the water then follows the camera out to the end
 of the view, and below the horizon the sky is drawn as distant sea (its deep colour turning into a mirror of the sky),

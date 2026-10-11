@@ -1,11 +1,11 @@
 using static GT67.Editor.Export.CodeWriter;
-using GT67.Core;
 
 namespace GT67.Editor.Export;
 
 /// <summary>
-/// Writes PostProcessingGenerator.cs: the tone mapping and every effect setting as Post.Set calls. All values are
-/// written (not only changes), so what the editor shows wins over the start-up code in Program.cs.
+/// Writes a scene's PostProcessingGenerator.cs: its Volume (tone mapping and every effect setting) as Volume.Set calls,
+/// applied when the scene becomes active. All values are written (not only changes), so what the editor shows wins
+/// over the start-up code in Program.cs.
 /// </summary>
 public static class PostProcessingExporter
 {
@@ -13,18 +13,14 @@ public static class PostProcessingExporter
 
     public static string Write(ExportContext context)
     {
-        var post = context.Post;
-        var w = new CodeWriter("The Main Volume: tone mapping and post-processing effect settings.");
+        var w = new CodeWriter("The scene's Volume: tone mapping and post-processing effect settings.", context.Namespace);
 
-        w.Line("/// <summary>Bloom, depth of field, colour grading and the other screen effects.</summary>");
+        w.Line("/// <summary>Bloom, depth of field, colour grading and the other screen effects of this scene.</summary>");
         w.Open("public static class PostProcessingGenerator");
-        w.Open("public static void Build(PostProcess post)");
-        foreach (var effect in post.Effects)
-            foreach (var parameter in ParameterAccess.Describe(effect))
-                w.Line($"post.Set({Str(effect.Name)}, {Str(parameter.Name)}, {Literal(parameter.Value!)});");
-        w.Line($"post.Enabled = {Bool(post.Enabled)};");
-        w.Line($"post.Exposure = {F(post.Exposure)};");
-        w.Line($"post.ToneMap = {Literal(post.ToneMap)};");
+        w.Open("public static void Build(Scene scene)");
+        foreach (var (effect, parameter, value) in context.Scene.Volume.Values)
+            if (value != null)
+                w.Line($"scene.Volume.Set({Str(effect)}, {Str(parameter)}, {Literal(value)});");
         w.Close();
         w.Close();
         return w.ToString();

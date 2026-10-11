@@ -10,7 +10,7 @@ public static class GrassExporter
 
     public static string Write(ExportContext context)
     {
-        var w = new CodeWriter("The grass of the game: its look and every painted blade.");
+        var w = new CodeWriter("The grass of the game: its look and every painted blade.", context.Namespace);
 
         w.Line("/// <summary>The grass layer with its blades.</summary>");
         w.Open("public static class GrassGenerator");

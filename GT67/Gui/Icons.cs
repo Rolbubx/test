@@ -6,7 +6,7 @@ public enum IconKind
 {
     None, Play, Stop, Pause, Gear, Compile, Select, Move, Rotate, Scale, Terrain, Light, Water, Cube, Sphere, Folder, File,
     Trash, Eye, EyeOff, Plus, Minus, Close, Check, ChevronRight, ChevronDown, ChevronUp, Search, Layout, Code, Camera,
-    Cloud, Image, Text, Button, Slider, Checkbox, TextBox, Panel, ProgressBar, Copy, ArrowUp, ArrowDown, Refresh,
+    Cloud, Image, Text, Button, Slider, Checkbox, TextBox, Panel, ProgressBar, Copy, ArrowUp, ArrowDown, Refresh, Sound, Scene, Script,
 }
 
 /// <summary>Vector icons drawn with Skia paths in a square (so they scale and stay sharp at any size).</summary>
@@ -120,6 +120,26 @@ public static class Icons
                     p.AddOval(new SKRect(P(0.14f, 0.38f).X, P(0.14f, 0.38f).Y, P(0.86f, 0.62f).X, P(0.86f, 0.62f).Y));
                     canvas.DrawPath(p, stroke);
                 }
+                break;
+            case IconKind.Sound:
+                using (var p = Poly(true, 0.14f, 0.38f, 0.32f, 0.38f, 0.54f, 0.18f, 0.54f, 0.82f, 0.32f, 0.62f, 0.14f, 0.62f)) canvas.DrawPath(p, stroke);
+                using (var p = new SKPath())
+                {
+                    p.AddArc(new SKRect(P(0.5f, 0.32f).X, P(0.5f, 0.32f).Y, P(0.78f, 0.68f).X, P(0.78f, 0.68f).Y), -60f, 120f);
+                    p.AddArc(new SKRect(P(0.48f, 0.18f).X, P(0.48f, 0.18f).Y, P(0.92f, 0.82f).X, P(0.92f, 0.82f).Y), -55f, 110f);
+                    canvas.DrawPath(p, stroke);
+                }
+                break;
+            case IconKind.Scene:
+                using (var p = Poly(true, 0.5f, 0.12f, 0.88f, 0.32f, 0.5f, 0.52f, 0.12f, 0.32f)) canvas.DrawPath(p, stroke);
+                using (var p = Poly(false, 0.12f, 0.5f, 0.5f, 0.7f, 0.88f, 0.5f)) canvas.DrawPath(p, stroke);
+                using (var p = Poly(false, 0.12f, 0.68f, 0.5f, 0.88f, 0.88f, 0.68f)) canvas.DrawPath(p, stroke);
+                break;
+            case IconKind.Script:
+                using (var p = Poly(true, 0.22f, 0.1f, 0.58f, 0.1f, 0.8f, 0.32f, 0.8f, 0.9f, 0.22f, 0.9f)) canvas.DrawPath(p, stroke);
+                Line(0.58f, 0.1f, 0.58f, 0.32f); Line(0.58f, 0.32f, 0.8f, 0.32f);
+                using (var p = Poly(false, 0.43f, 0.48f, 0.34f, 0.6f, 0.43f, 0.72f)) canvas.DrawPath(p, stroke);
+                using (var p = Poly(false, 0.59f, 0.48f, 0.68f, 0.6f, 0.59f, 0.72f)) canvas.DrawPath(p, stroke);
                 break;
             case IconKind.Folder:
                 using (var p = Poly(true, 0.1f, 0.24f, 0.4f, 0.24f, 0.48f, 0.34f, 0.9f, 0.34f, 0.9f, 0.8f, 0.1f, 0.8f)) canvas.DrawPath(p, stroke);

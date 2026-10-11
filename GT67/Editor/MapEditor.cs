@@ -27,7 +27,7 @@ public enum EditorTool
 
 /// <summary>
 /// The in-game map editor (enabled with <c>IsEditor</c> in Program.cs): docked panels around a 3D viewport. Drop model
-/// files onto the window, drag primitives out of the Assets tab, move/rotate/scale objects and lights with gizmos, edit
+/// files onto the window, drag shapes, prefabs and scripts out of the Project panel, move/rotate/scale objects and lights with gizmos, edit
 /// the lighting and post-processing, design the game's UI, attach C# scripts (edited in Visual Studio Code or any other
 /// editor), sculpt terrain, press Play to try it and Compile to write the whole game to <c>Generated/GeneratedGame/</c>.
 /// </summary>
@@ -90,6 +90,7 @@ public sealed partial class MapEditor : IDisposable
         _markers = new LightMarkers(Scene);
         _ring = new BrushRing(Scene);
         Scene.Simulate = false; // edit first, press Play to run scripts
+        InitScenes();
         ApplySnapSettings();
 
         if (Paths == null)
@@ -97,7 +98,7 @@ public sealed partial class MapEditor : IDisposable
         else
             CompileScripts(announceSuccess: false);
 
-        Say("Editor ready. Drop .fbx/.gltf/.glb/.obj files onto the window, or drag shapes from the Assets tab.");
+        Say("Editor ready. Drop .fbx/.gltf/.glb/.obj files onto the window, or drag shapes from the Project panel (bottom). The Hierarchy lists everything in the scene.");
     }
 
     public ProjectPaths? Paths { get; }
@@ -111,62 +112,79 @@ public sealed partial class MapEditor : IDisposable
     private Scene Scene => _window.Scene;
     private Gui.Gui G => _window.Ui.Gui;
 
+    // ---- selection: one thing at a time, whatever its kind (object, light, water, sound, Volume, environment) ----
+
     private GameObject? Selected
     {
         get => _window.DebugUI.Selected;
         set
         {
+            if (value != null) ClearSelection();
             _window.DebugUI.Selected = value;
-            if (value != null)
-            {
-                VolumeSelected = false;
-                SelectedLight = null;
-                SelectedUi = null;
-                SelectedWater = null;
-            }
         }
     }
 
     /// <summary>The point or spot light picked in the viewport (shown in the inspector, movable with the gizmo).</summary>
     private Light? SelectedLight { get; set; }
 
-    /// <summary>The "Main Volume" (post-processing settings) is shown in the inspector.</summary>
+    /// <summary>The scene's Volume (post-processing settings) is shown in the inspector.</summary>
     private bool VolumeSelected { get; set; }
 
-    /// <summary>The body of water picked in the viewport or the Scene tab (Inspector, move and scale gizmos).</summary>
+    /// <summary>The scene's environment (sun, sky, clouds, rain, fog, ambient light) is shown in the inspector.</summary>
+    private bool EnvironmentSelected { get; set; }
+
+    /// <summary>The body of water picked in the viewport or the Hierarchy (Inspector, move and scale gizmos).</summary>
     private Water? SelectedWater { get; set; }
 
-    private void SelectVolume()
+    /// <summary>The sound picked in the Hierarchy.</summary>
+    private Sound? SelectedSound { get; set; }
+
+    private void ClearSelection()
     {
         _window.DebugUI.Selected = null;
         SelectedLight = null;
-        SelectedUi = null;
+        VolumeSelected = false;
+        EnvironmentSelected = false;
         SelectedWater = null;
+        SelectedSound = null;
+        SelectedUi = null;
+    }
+
+    private void SelectVolume()
+    {
+        ClearSelection();
         VolumeSelected = true;
+        _rightTab = RightInspector;
+    }
+
+    private void SelectEnvironment()
+    {
+        ClearSelection();
+        EnvironmentSelected = true;
+        _rightTab = RightInspector;
+    }
+
+    private void SelectSound(Sound sound)
+    {
+        ClearSelection();
+        SelectedSound = sound;
         _rightTab = RightInspector;
     }
 
     private void SelectLight(Light? light)
     {
+        if (light != null) ClearSelection();
         SelectedLight = light;
-        if (light != null)
-        {
-            VolumeSelected = false;
-            _window.DebugUI.Selected = null;
-            SelectedUi = null;
-            SelectedWater = null;
-        }
     }
 
     private void SelectWater(Water? water)
     {
+        if (water != null)
+        {
+            ClearSelection();
+            _rightTab = RightInspector;
+        }
         SelectedWater = water;
-        if (water == null) return;
-        VolumeSelected = false;
-        _window.DebugUI.Selected = null;
-        SelectedLight = null;
-        SelectedUi = null;
-        _rightTab = RightInspector;
     }
 
     /// <summary>The closest water surface the ray crosses inside its rectangle, and how far along the ray.</summary>
@@ -295,10 +313,7 @@ public sealed partial class MapEditor : IDisposable
                 DeleteSelection();
                 return;
             case Keys.Escape:
-                Selected = null;
-                SelectLight(null);
-                SelectWater(null);
-                SelectedUi = null;
+                ClearSelection();
                 return;
             case Keys.D when ctrl:
                 DuplicateSelection();
@@ -333,6 +348,12 @@ public sealed partial class MapEditor : IDisposable
             water.Dispose();
             Say($"Deleted '{water.Name}'.");
             SelectWater(null);
+        }
+        else if (SelectedSound is { } sound)
+        {
+            Scene.Remove(sound);
+            Say($"Deleted '{sound.Name}'.");
+            SelectedSound = null;
         }
         else if (SelectedLight is PointLight point)
         {
@@ -439,7 +460,8 @@ public sealed partial class MapEditor : IDisposable
         for (int i = 2; Scene.FindSound(name) != null; i++) name = $"{baseName} {i}";
         var sound = new Sound(relative) { Name = name, Position = at };
         Scene.Add(sound);
-        Say($"Added sound '{name}' ({sound.Length:0.0} s). Edit it in the Lighting tab > Sounds; Play previews it.");
+        SelectSound(sound);
+        Say($"Added sound '{name}' ({sound.Length:0.0} s): it is in the Hierarchy, and Play in the Inspector previews it.");
     }
 
     // ---- per-frame -------------------------------------------------------------------------------
@@ -512,12 +534,11 @@ public sealed partial class MapEditor : IDisposable
         if (Playing) return;
         _snapshot.Clear();
         _existedAtPlay.Clear();
-        foreach (var obj in Scene.Traverse())
-        {
-            if (obj.EditorOnly) continue;
-            _snapshot[obj] = (obj.Position, obj.Rotation, obj.Scale, obj.Enabled, obj.Visible);
-            _existedAtPlay.Add(obj);
-        }
+        _playedScenes.Clear();
+        _playStartScene = Scene;
+        Scene.Volume.CaptureFrom(_window.Renderer.Post);   // Stop puts these post-processing settings back
+        SnapshotScene(Scene);
+        _window.Scenes.LoadOverride = LoadDuringPlay;
         SnapshotUi();
         var camera = _window.Camera;
         _editorView = (camera.Position, camera.Yaw, camera.Pitch, camera.Fov);
@@ -532,11 +553,22 @@ public sealed partial class MapEditor : IDisposable
     {
         if (!Playing) return;
         Playing = false;
-        Scene.Simulate = false;
+        _window.Scenes.LoadOverride = null;
+
+        // Back to the scene Play started in (scripts may have loaded others), with its own post-processing.
+        if (_playStartScene != null && _playStartScene != Scene) OpenScene(_playStartScene, keepVolume: false);
+        else _window.Scenes.Activate(Scene);
+        _playStartScene = null;
 
         // Remove what the scripts spawned, put everything else back and give scripts a fresh start.
-        foreach (var obj in Scene.Traverse().ToList())
-            if (!obj.EditorOnly && !_existedAtPlay.Contains(obj)) obj.Destroy();
+        foreach (var scene in _playedScenes)
+        {
+            scene.Simulate = false;
+            foreach (var sound in scene.Sounds) sound.Stop();
+            foreach (var obj in scene.Traverse().ToList())
+                if (!obj.EditorOnly && !_existedAtPlay.Contains(obj)) obj.Destroy();
+        }
+        _playedScenes.Clear();
 
         foreach (var (obj, state) in _snapshot)
         {
@@ -577,8 +609,10 @@ public sealed partial class MapEditor : IDisposable
 
         try
         {
-            var result = new Export.GameExporter(Scene, Paths, _window.GameUi, _window.Renderer.Post).Generate();
+            Scene.Volume.CaptureFrom(_window.Renderer.Post);   // the open scene's post-processing as it is now
+            var result = new Export.GameExporter(_scenes, Paths, _window.GameUi).Generate();
             Say($"Wrote {result.Files.Count} files to {Path.GetRelativePath(Paths.Root, result.Folder)}: " +
+                $"{result.Scenes} scene(s) (the game starts with '{_scenes[0].Name}'), " +
                 $"{result.Objects} object(s), {result.Terrains} terrain(s), {result.Waters} water body(ies), " +
                 $"{result.Sounds} sound(s), {result.UiElements} UI element(s); {result.CopiedFiles} asset file(s) shipped " +
                 "(models, textures, sounds, UI images).");
@@ -831,6 +865,8 @@ public sealed partial class MapEditor : IDisposable
     {
         Settings.Save(Paths);
         Scripts.Dispose();
-        // Gizmo, markers and ring are scene objects; the scene disposes them.
+        // The open scene is disposed by the window, the others here. Gizmo, markers and ring are objects of the open scene.
+        foreach (var scene in _scenes)
+            if (scene != Scene) scene.Dispose();
     }
 }

@@ -7,11 +7,13 @@ namespace GT67.Editor;
 /// <summary>Small pickable spheres at the position of every point and spot light, so lights can be selected and moved in the viewport.</summary>
 public sealed class LightMarkers
 {
-    private readonly Scene _scene;
     private readonly Dictionary<Light, GameObject> _markers = new();
     private readonly List<Light> _gone = new();
 
-    public LightMarkers(Scene scene) => _scene = scene;
+    public LightMarkers(Scene scene) => Scene = scene;
+
+    /// <summary>The scene whose lights get markers (the editor changes it when another scene is opened).</summary>
+    public Scene Scene { get; set; }
 
     public static Vector3 PositionOf(Light light) => light switch
     {
@@ -22,8 +24,8 @@ public sealed class LightMarkers
 
     private IEnumerable<Light> Lights()
     {
-        foreach (var point in _scene.PointLights) yield return point;
-        if (_scene.Spot is { } spot) yield return spot;
+        foreach (var point in Scene.PointLights) yield return point;
+        if (Scene.Spot is { } spot) yield return spot;
     }
 
     /// <summary>Creates, moves and removes the markers; call every frame.</summary>
@@ -54,7 +56,7 @@ public sealed class LightMarkers
                     EditorOnly = true,
                     Overlay = true,
                 };
-                _scene.Add(marker);
+                Scene.Add(marker);
                 _markers[light] = marker;
             }
 

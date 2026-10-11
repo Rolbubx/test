@@ -16,7 +16,7 @@ public static class ObjectsExporter
     public static string Write(ExportContext context)
     {
         var scene = context.Scene;
-        var w = new CodeWriter("The objects of the game; imported model files are shipped in Assets/Models.");
+        var w = new CodeWriter("The objects of the game; imported model files are shipped in Assets/Models.", context.Namespace);
         var terrainObjects = scene.Terrains.Select(t => t.Object).ToHashSet();
 
         var roots = scene.Roots.Where(r => !r.EditorOnly && !terrainObjects.Contains(r)).ToList();

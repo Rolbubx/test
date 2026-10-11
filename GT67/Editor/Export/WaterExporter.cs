@@ -10,7 +10,7 @@ public static class WaterExporter
 
     public static string Write(ExportContext context)
     {
-        var w = new CodeWriter("The bodies of water of the game.");
+        var w = new CodeWriter("The bodies of water of the game.", context.Namespace);
 
         w.Line("/// <summary>Lakes, ponds and seas.</summary>");
         w.Open("public static class WaterGenerator");
