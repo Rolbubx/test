@@ -1,0 +1,356 @@
+===============================================================================
+ GT67 SHADER API
+ Everything you can use to write shaders in the GT67 shader language
+===============================================================================
+
+ Contents
+   1. The basics (files, reloading, errors)
+   2. Settings: 'param' lines
+   3. Object shaders     (surface / vertex)   - one object's look
+   4. Screen shaders     (screen)             - the whole picture (PS1, CRT...)
+   5. Sky shaders        (sky)                - the sky and your own sun
+   6. The library (functions every shader can call)
+   7. Using shaders from C# (scripts and code)
+   8. In the editor
+   9. Bundled shaders
+  10. Small examples
+
+
+-------------------------------------------------------------------------------
+ 1. THE BASICS
+-------------------------------------------------------------------------------
+
+ - A shader is a text file:  Shaders/Custom/<Name>.shader
+   Its name everywhere is the file name without ".shader".
+ - The code inside the blocks is GLSL (the language of the GPU): float, vec2,
+   vec3, mix(), smoothstep(), sin(), texture()... all work.
+ - Comments: // anywhere.
+ - Saving the file reloads it by itself within about half a second.
+ - A broken file shows its error (with the line number) in the Inspector and
+   in Project > Shaders. The last version that compiled keeps running.
+ - Compile copies every shader the game uses into the game
+   (Assets/Game/Shaders), with the images its settings use.
+
+ There are three kinds of shader. A file is exactly one kind, chosen by its
+ block:
+
+   surface { } and/or vertex { }   -> object shader  (one object)
+   screen { }                      -> screen shader  (the whole picture)
+   sky { }                         -> sky shader     (the sky)
+
+
+-------------------------------------------------------------------------------
+ 2. SETTINGS: 'param' LINES
+-------------------------------------------------------------------------------
+
+ 'param' lines become settings you change in the editor's Inspector (and from
+ C#). Inside the blocks they are used by name, like variables.
+
+   param float  Speed    = 2.0                  // a number
+   param float  Glow     = 1.0 range 0 5        // a number with a slider (floats only)
+   param color  Tint     = (1.0, 0.5, 0.2)      // a colour (missing values = 1)
+   param vec2   Offset   = (0.5, 0.5)           // two numbers
+   param vec3   Wind     = (1.0, 0.0, 2.0)      // three numbers
+   param bool   Animate  = true                 // a checkbox: true/false, 1/0, on/off
+   param texture Mask    = "Assets/Textures/mask.png"   // an image (white when empty or missing)
+
+ Rules
+ - Names: letters, digits and _, not starting with a digit.
+ - A name cannot be one the language already uses (the inputs and outputs of
+   the blocks below, like color, uv, albedo..., and the library functions).
+ - Avoid names starting with "u" followed by a capital letter (uTime,
+   uInput...): the engine uses those for itself.
+ - Up to 6 textures per object or sky shader, 8 per screen shader.
+ - Colours arrive in linear light (correct for lighting) in object and sky
+   shaders, and in screen shaders with 'stage hdr'. In normal screen shaders
+   (after tone mapping) they arrive exactly as picked in the colour picker.
+
+
+-------------------------------------------------------------------------------
+ 3. OBJECT SHADERS  (surface / vertex)
+-------------------------------------------------------------------------------
+
+ Changes how one object looks. Pick it for an object in the Inspector >
+ Shader. Lighting, shadows, fog, rain and puddles still work on top.
+
+ surface { ... }   runs for every pixel of the object
+ -------------------------------------------------
+   You can READ:
+     uv              vec2   texture coordinates
+     position        vec3   world position of this pixel (metres)
+     localPosition   vec3   position in the model's own coordinates
+     objectPosition  vec3   the object's origin in the world
+     view            vec3   direction towards the camera
+     time            float  seconds
+     base            vec3   the object's colour and texture here
+     vertexColor     vec4   the model's vertex colour
+     screenUV        vec2   position on screen, 0..1
+     sunDirection    vec3   towards the sun
+     sunColor        vec3   the sun's light (zero when it is off)
+     wetness         float  0..1 while it rains
+
+   You can SET (they start with the object's normal values):
+     albedo          vec3   the surface colour
+     emission        vec3   glow (light it gives off itself)
+     shininess       float  size of the highlight (higher = smaller, sharper)
+     specular        float  strength of the highlight (a multiplier)
+     normal          vec3   the surface direction (bend it for bumps)
+     alpha           float  below 0.5 the pixel is cut away (holes, dissolve)
+
+ vertex { ... }   runs for every vertex (optional)
+ -------------------------------------------------
+   You can CHANGE:   position (world), normal, uv
+   You can READ:     localPosition, objectPosition, time, vertexColor
+   Shadows and reflections keep the unmoved shape.
+
+
+-------------------------------------------------------------------------------
+ 4. SCREEN SHADERS  (screen)
+-------------------------------------------------------------------------------
+
+ Changes the whole picture of the game. Each scene has its own list, in its
+ Volume (Hierarchy > Volume > "Add screen shader"). They run in list order,
+ after the built-in post effects of the same stage, and each one gets the
+ previous one's result.
+
+ Extra lines (optional, outside the block)
+   stage ldr        runs after tone mapping, on display colours 0..1 (DEFAULT)
+   stage hdr        runs before tone mapping, on linear light (can go above 1)
+   vertexSnap 160   while this shader is on, every vertex snaps to a grid 160
+                    rows high on screen: the PS1 wobble (0 = off). Applies to
+                    normal objects and object shaders (not water or grass).
+
+ screen { ... }   runs for every pixel of the picture
+ -------------------------------------------------
+   color            vec3   READ AND WRITE: this pixel. What you leave in it is
+                           the result.
+   uv               vec2   position on screen, 0..1, (0,0) = bottom-left
+   resolution       vec2   size of the picture in pixels
+   time             float  seconds
+   depth            float  metres from the camera to what this pixel shows,
+                           along the view direction (the far plane for the sky)
+   worldPosition    vec3   where that point is in the world (.y = its height);
+                           for the sky, a point on the far plane
+   cameraPosition   vec3   where the camera is
+   sunDirection     vec3   towards the sun
+   sunColor         vec3   the sun's light (zero when it is off)
+
+   Functions only screen shaders have:
+     sampleScene(uv)   vec3   the picture's colour anywhere on screen
+     sampleDepth(uv)   float  the distance (metres) anywhere on screen
+     sampleWorld(uv)   vec3   the world position anywhere on screen
+     isSky(uv)         bool   true where nothing was drawn (the sky)
+     dither(pixel)     float  4x4 ordered (Bayer) dither, -0.5..0.5; give it a
+                              whole pixel position, e.g. floor(uv * resolution)
+
+   'return;' ends early and keeps the pixel as it is.
+
+
+-------------------------------------------------------------------------------
+ 5. SKY SHADERS  (sky)
+-------------------------------------------------------------------------------
+
+ Changes or replaces the sky, and can draw your own sun, moons and stars. Pick
+ it in Hierarchy > Environment > Sky > Shader. Colours are linear light: 1 is
+ white, the sun is much brighter (so it glows with bloom). The storm and the
+ fog are drawn over it afterwards, so the weather still works.
+
+ sky { ... }   runs for every direction of the sky
+ -------------------------------------------------
+   color            vec3   READ AND WRITE: starts as the engine's sky in this
+                           direction (the physical atmosphere with its clouds,
+                           a cubemap or the gradient). Keep it, change it or
+                           replace it.
+   direction        vec3   the direction looked at (unit vector)
+   sunDirection     vec3   towards the sun
+   sunColor         vec3   the sun's light (zero when the sun is off)
+   sunSize          float  the sun's radius in radians
+   time             float  seconds
+   cameraPosition   vec3   where the camera is
+
+   Functions only sky shaders have:
+     sunDisc(direction, sunDirection, size)  float  1 inside a disc of 'size'
+                                                    radians, 0 outside (smooth edge)
+     skyColor(direction)                     vec3   the engine's sky in any direction
+
+ Related switches (Environment, no shader needed):
+   - Sun: on/off (light and disc), "Show the disc in the sky", remove / add.
+   - Physical sky: on/off. Off draws the Top / Horizon / Bottom gradient (with
+     the sun's disc) and leaves the ambient light to you.
+
+
+-------------------------------------------------------------------------------
+ 6. THE LIBRARY  (every kind of shader can call these)
+-------------------------------------------------------------------------------
+
+   hash(vec2 p) / hash(vec3 p)        float  a stable random number 0..1
+   hash2(vec2 p)                      vec2   two random numbers 0..1
+   noise(vec2 p) / noise(vec3 p)      float  smooth noise 0..1
+   fbm(vec2 p, int octaves)           float  layered noise 0..1 (clouds, rock, dirt);
+   fbm(vec3 p, int octaves)                  octaves 1..8
+   voronoi(vec2 p)                    vec3   x = distance to the cell centre,
+                                             y = random id of the cell 0..1,
+                                             z = distance to the cell's edge
+                                             (cracks, tiles, scales)
+   remap(x, a, b, c, d)               float  x from the range a..b into c..d
+   saturate(x)                        float/vec3  clamp to 0..1
+   rotate(vec2 p, float angle)        vec2   p turned around (0,0), radians
+   hsv(vec3 hueSatValue)              vec3   hue/saturation/value -> RGB
+   rgbToHsv(vec3 rgb)                 vec3   RGB -> hue/saturation/value
+   fresnel(normal, view, power)       float  0 facing the camera, 1 at the rim
+   stripes(float x, float count)      float  soft bands 0..1
+   checker(vec2 uv, float count)      float  squares 0 or 1
+   circle(vec2 uv, vec2 centre, float radius)  float  a soft disc 0..1
+   triplanar(texture, position, normal, scale) vec4  a texture without uvs
+   bump(normal, position, height, strength)    vec3  bumps from a height
+                                                     (object surface only)
+
+ Plus all of GLSL: mix, smoothstep, step, clamp, min, max, abs, floor, fract,
+ mod, sin, cos, pow, sqrt, exp, length, distance, dot, cross, normalize,
+ reflect, texture(MyTextureParam, uv)...
+
+
+-------------------------------------------------------------------------------
+ 7. USING SHADERS FROM C#  (scripts and code)
+-------------------------------------------------------------------------------
+
+ Object shaders (on a GameObject)
+   obj.SetShader("Hologram");                    // "" = the normal look
+   obj.SetShaderParam("Speed", 3f);              // float (x)
+   obj.SetShaderParam("Tint", 1f, 0.5f, 0.2f);   // color / vec2 / vec3 (x, y, z)
+   obj.SetShaderTexture("Mask", "Assets/Textures/mask.png");
+   obj.Material.CustomShader                     // the shader's name
+
+ Screen shaders (the scene's Volume: Game.Volume in scripts, scene.Volume elsewhere)
+   var ps1 = Game.Volume.AddScreenShader("PS1"); // added at the end of the list
+   var crt = Game.Volume.GetScreenShader("CRT"); // the first one with that name, or null
+   Game.Volume.RemoveScreenShader(ps1);
+   Game.Volume.MoveScreenShader(crt, -1);        // -1 = run earlier, +1 = later
+   Game.Volume.ScreenShaders                     // the list, in run order
+
+ Sky shader (the scene's skybox)
+   Game.Scene.Skybox.CustomShader = new ScreenShaderUse("ToonSky");
+   Game.Scene.Skybox.CustomShader = null;        // back to the engine's sky
+   Game.Scene.Skybox.Physical.Enabled = false;   // physical sky off (gradient)
+   Game.Scene.Sun.Enabled = false;               // sun off (light and disc)
+   Game.Scene.Sun.ShowDisc = false;              // keep the light, hide the disc
+
+ A screen or sky shader entry (ScreenShaderUse) and its settings
+   use.Enabled = false;                          // switch off without removing
+   use.Set("Height", 180f);                      // float
+   use.Set("Dithering", true);                   // bool
+   use.Set("FogColor", new Color4(0.2f, 0.25f, 0.3f, 1f));   // colour
+   use.Set("Offset", new Vector2(0.5f, 0.5f));   // also Vector3 / Vector4
+   use.SetTexture("Lut", "Assets/Textures/lut.png");
+   use.Reset("Height");                          // back to the file's default
+   use.Name                                      // the shader's name
+
+ Settings that are never set keep the file's 'param' defaults. Changes take
+ effect on the next frame, so they can be animated in OnUpdate. Changes made
+ by scripts while the game runs are not saved.
+
+ Scenes: each scene has its own screen shader list and sky. Game.LoadScene
+ switches to the new scene's ones.
+
+ Reading a shader file (advanced): renderer.Custom.Get("PS1") gives a
+ CustomShader with IsScreen, IsSky, Stage, VertexSnap, Params (Name, Kind,
+ Default, Range, DefaultTexture), Error and File.
+
+
+-------------------------------------------------------------------------------
+ 8. IN THE EDITOR
+-------------------------------------------------------------------------------
+
+ Project > Shaders (bottom panel)
+   - New shader          an object shader from a template
+   - New screen shader   a screen shader from a template   (camera icon)
+   - New sky shader      a sky shader from a template      (cloud icon)
+   - Double-click a tile to open it in your code editor.
+   - Drag a screen shader into the view: added to the scene's Volume.
+   - Drag a sky shader into the view: becomes the scene's sky shader.
+ Inspector > Shader (an object selected)     pick an object shader, its settings
+ Hierarchy > Volume > Screen shaders         add, order, tune, remove
+ Hierarchy > Environment > Sky > Shader      pick a sky shader, its settings
+
+
+-------------------------------------------------------------------------------
+ 9. BUNDLED SHADERS  (Shaders/Custom)
+-------------------------------------------------------------------------------
+
+ Object shaders
+   Pulse      glowing pulse
+   Dissolve   noise + cut-out with a burning edge
+   Sway       wind in grass, plants and flags (a vertex block)
+   Hologram   fresnel rim, screen-space scanlines, a texture setting
+
+ Screen shaders
+   PS1        240p big pixels, 15-bit colour with dithering, vertex wobble
+              (vertexSnap 160), optional short-distance fog
+              Height, ColorDepth, Dithering, FogAmount, FogStart, FogEnd, FogColor
+   CRT        curved glass, scanlines, RGB mask, colour bleed, darker corners
+              Curvature, Scanlines, LineCount, Mask, Bleed, Vignette, Flicker
+   Clouds2D   a flat, drifting cloud layer over the sky
+              Height, Size, Coverage, Softness, Wind, Light, Shadow, Opacity,
+              HorizonFade, Cartoon
+
+ Sky shaders
+   ToonSky    day / sunset / night gradient that follows the sun, a hard toon
+              sun with a glow ring, a moon and stars
+              Blend, DayZenith, DayHorizon, SunsetHorizon, NightZenith,
+              NightHorizon, SunSize, SunGlow, Moon, Stars
+
+
+-------------------------------------------------------------------------------
+ 10. SMALL EXAMPLES
+-------------------------------------------------------------------------------
+
+ Object: a glowing, pulsing surface
+   param color Tint = (1.0, 0.4, 0.1)
+   param float Speed = 2.0 range 0 10
+   surface
+   {
+       albedo = base * Tint;
+       emission = Tint * (0.5 + 0.5 * sin(time * Speed));
+   }
+
+ Object: grass that sways in the wind
+   vertex
+   {
+       position.x += sin(time * 2.0 + position.z) * 0.1 * localPosition.y;
+   }
+
+ Screen: posterize (fewer colours)
+   param float Levels = 6.0 range 2 32
+   screen
+   {
+       color = floor(color * Levels + 0.5) / Levels;
+   }
+
+ Screen: darken everything below 20 metres
+   screen
+   {
+       if (isSky(uv)) return;
+       if (worldPosition.y < 20.0) color *= 0.5;
+   }
+
+ Screen: grey out what is far away
+   screen
+   {
+       float far = smoothstep(30.0, 120.0, depth);
+       color = mix(color, vec3(dot(color, vec3(0.299, 0.587, 0.114))), far);
+   }
+
+ Sky: your own gradient and a big sun
+   sky
+   {
+       vec3 mine = mix(vec3(0.9, 0.5, 0.3), vec3(0.1, 0.2, 0.6), saturate(direction.y));
+       mine += sunColor * sunDisc(direction, sunDirection, 0.05) * 10.0;
+       color = mine;
+   }
+
+ Sky: keep the physical sky, add a second (green) moon
+   sky
+   {
+       vec3 moonDirection = normalize(vec3(0.3, 0.5, -0.8));
+       color += vec3(0.4, 1.0, 0.5) * sunDisc(direction, moonDirection, 0.03) * 3.0;
+   }
