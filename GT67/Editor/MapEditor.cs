@@ -139,6 +139,16 @@ public sealed partial class MapEditor : IDisposable
     /// <summary>The sound picked in the Hierarchy.</summary>
     private Sound? SelectedSound { get; set; }
 
+    /// <summary>The scene's grass is shown in the inspector.</summary>
+    private bool GrassSelected { get; set; }
+
+    private void SelectGrass()
+    {
+        ClearSelection();
+        GrassSelected = true;
+        _rightTab = RightInspector;
+    }
+
     private void ClearSelection()
     {
         _window.DebugUI.Selected = null;
@@ -147,6 +157,7 @@ public sealed partial class MapEditor : IDisposable
         EnvironmentSelected = false;
         SelectedWater = null;
         SelectedSound = null;
+        GrassSelected = false;
         SelectedUi = null;
     }
 
@@ -348,6 +359,12 @@ public sealed partial class MapEditor : IDisposable
             water.Dispose();
             Say($"Deleted '{water.Name}'.");
             SelectWater(null);
+        }
+        else if (GrassSelected && Scene.Grass is { } grass)
+        {
+            grass.Clear();
+            GrassSelected = false;
+            Say("Removed all the grass.");
         }
         else if (SelectedSound is { } sound)
         {

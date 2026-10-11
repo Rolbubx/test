@@ -164,6 +164,7 @@ public sealed partial class MapEditor
         : SelectedUi != null ? $"UI: {SelectedUi.Name}"
         : VolumeSelected ? "Volume"
         : EnvironmentSelected ? "Environment"
+        : GrassSelected ? "Grass"
         : "Nothing selected";
 
     private void ToolButton(IconKind icon, string tip, EditorTool tool)
@@ -244,6 +245,12 @@ public sealed partial class MapEditor
         g.Tooltip("This scene's post-processing: tone mapping, bloom, depth of field, colour grading... (each scene has its own)");
         if (Matches("Environment") && g.Selectable("Environment##environment", EnvironmentSelected, IconKind.Cloud)) SelectEnvironment();
         g.Tooltip("Sun and time of day, sky and clouds, rain, fog and ambient light.");
+
+        if (Scene.Grass is { Count: > 0 } && Matches("Grass"))
+        {
+            if (g.Selectable("Grass##grass", GrassSelected, IconKind.Terrain)) SelectGrass();
+            g.Tooltip("The painted grass: its look and wind. Del removes all of it.");
+        }
 
         foreach (var root in Scene.Roots.ToArray()) DrawSceneNode(root);
 
@@ -390,6 +397,11 @@ public sealed partial class MapEditor
             g.Heading("Environment");
             g.TextWrapped($"Sun, sky, clouds, rain, fog and ambient light of the scene '{Scene.Name}'.", dim: true);
             _window.DebugUI.DrawEnvironment();
+        }
+        else if (GrassSelected)
+        {
+            g.Heading("Grass");
+            DrawGrassSection();
         }
         else if (SelectedLight != null) DrawLightInspector(SelectedLight);
         else if (SelectedWater != null) DrawWaterInspector(SelectedWater);
