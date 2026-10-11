@@ -378,6 +378,12 @@ public sealed partial class MapEditor : IDisposable
             Say($"Deleted '{point.Name}'.");
             SelectLight(null);
         }
+        else if (SelectedLight is SpotLight spot)
+        {
+            Scene.SpotLights.Remove(spot);
+            Say($"Deleted '{spot.Name}'.");
+            SelectLight(null);
+        }
         else if (Selected is { EditorOnly: false } obj && !Scene.Terrains.Any(t => t.Object == obj))
         {
             Say($"Deleted '{obj.Name}'.");
@@ -719,6 +725,25 @@ public sealed partial class MapEditor : IDisposable
         Scene.AddLight(light);
         if (Scene.PointLights.Contains(light)) SelectLight(light);
         Say("Added a point light: drag it in the viewport or tune it in the Inspector.");
+    }
+
+    /// <summary>A spot light a little above the point in front of the camera, shining the way the camera looks (tilted down).</summary>
+    private void AddSpotLight()
+    {
+        if (Scene.SpotLights.Count >= Scene.MaxSpotLights)
+        {
+            Say($"A scene can have {Scene.MaxSpotLights} spot lights: delete one first.", error: true);
+            return;
+        }
+        var camera = _window.Camera;
+        var position = camera.Position + camera.Front * 4f + Vector3.UnitY * 2f;
+        var direction = Vector3.Normalize(camera.Front - Vector3.UnitY * 0.6f);
+        string name = "Spot Light";
+        for (int i = 2; Scene.SpotLights.Any(s => s.Name == name); i++) name = $"Spot Light {i}";
+        var light = new SpotLight(position, direction) { Name = name, Intensity = 4f, Range = 25f };
+        Scene.AddLight(light);
+        SelectLight(light);
+        Say("Added a spot light: move it with W, aim it with Direction in the Inspector, or drag it onto an object in the Hierarchy to attach it.");
     }
 
     /// <summary>A capsule tagged "Player" that walks with PlayerController; adds a game camera following it if there is none.</summary>

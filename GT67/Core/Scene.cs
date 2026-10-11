@@ -9,6 +9,7 @@ namespace GT67.Core;
 public sealed class Scene : IDisposable
 {
     public const int MaxPointLights = 8;
+    public const int MaxSpotLights = 4;
 
     private readonly List<GameObject> _roots = new();
     private readonly List<GameObject> _updateBuffer = new();
@@ -36,7 +37,20 @@ public sealed class Scene : IDisposable
 
     public Sun? Sun { get; set; }
     public List<PointLight> PointLights { get; } = new();
-    public SpotLight? Spot { get; set; }
+
+    /// <summary>The scene's spot lights (up to <see cref="MaxSpotLights"/> are drawn).</summary>
+    public List<SpotLight> SpotLights { get; } = new();
+
+    /// <summary>The first spot light (setting it replaces the first one; null removes it).</summary>
+    public SpotLight? Spot
+    {
+        get => SpotLights.Count > 0 ? SpotLights[0] : null;
+        set
+        {
+            if (SpotLights.Count > 0) SpotLights.RemoveAt(0);
+            if (value != null) SpotLights.Insert(0, value);
+        }
+    }
 
     public Color4 AmbientColor { get; set; } = new(0.6f, 0.7f, 0.9f, 1f);
     public float AmbientIntensity { get; set; } = 0.15f;
@@ -187,6 +201,16 @@ public sealed class Scene : IDisposable
         PointLights.Add(light);
     }
 
+    public void AddLight(SpotLight light)
+    {
+        if (SpotLights.Count >= MaxSpotLights)
+        {
+            Log.Warn($"Only {MaxSpotLights} spot lights are supported; '{light.Name}' ignored.");
+            return;
+        }
+        SpotLights.Add(light);
+    }
+
     // ---- queries ---------------------------------------------------------------------------------
 
     public IEnumerable<GameObject> Traverse()
@@ -329,6 +353,8 @@ public sealed class Scene : IDisposable
         if (Skybox?.Physical?.Clouds is { } clouds) clouds.Storminess = Storm;
 
         for (int i = 0; i < _sounds.Count; i++) _sounds[i].Update(this);
+        foreach (var light in PointLights) if (light.Follow != null) light.FollowObject();
+        foreach (var light in SpotLights) if (light.Follow != null) light.FollowObject();
         Sun?.Update(this, deltaTime);
         Skybox?.Physical?.Update(deltaTime);
         foreach (var water in _waters) water.Update(deltaTime);

@@ -43,9 +43,18 @@ public sealed class GizmoTarget
         SetScale = scale => obj.Scale = scale,
     };
 
-    public static GizmoTarget For(PointLight light) => new(() => light.Position, p => light.Position = p);
+    // An attached light keeps where it was dragged to, relative to its object
+    public static GizmoTarget For(PointLight light) => new(() => light.Position, p =>
+    {
+        light.Position = p;
+        if (light.Follow != null) light.AttachTo(light.Follow);
+    });
 
-    public static GizmoTarget For(SpotLight light) => new(() => light.Position, p => light.Position = p);
+    public static GizmoTarget For(SpotLight light) => new(() => light.Position, p =>
+    {
+        light.Position = p;
+        if (light.Follow != null) light.AttachTo(light.Follow);
+    });
 
     /// <summary>Water moves (the Y arrow changes its level) and scales: X and Z resize it, the height does nothing.</summary>
     public static GizmoTarget For(Water water) => new(() => water.Position, p => water.Position = p)

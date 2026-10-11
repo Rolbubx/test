@@ -90,10 +90,10 @@ public static class EnvironmentExporter
             w.Line($"scene.AddLight(new PointLight({V3(light.Position)}, {Col(light.Color)}, {F(light.Intensity)}, {F(light.Range)}) " +
                    $"{{ Name = {Str(light.Name)}, Enabled = {Bool(light.Enabled)} }});");
         }
-        if (scene.Spot is { } spot)
+        foreach (var spot in scene.SpotLights)
         {
-            w.Line($"scene.Spot = new SpotLight({V3(spot.Position)}, {V3(spot.Direction)})");
-            w.Initializer(spot, null, exclude: new[] { "Position", "Direction" });
+            w.Line($"scene.AddLight(new SpotLight({V3(spot.Position)}, {V3(spot.Direction)})");
+            w.Initializer(spot, null, exclude: new[] { "Position", "Direction" }, closing: ");");
         }
 
         w.Close();

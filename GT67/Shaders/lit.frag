@@ -1,4 +1,5 @@
 #define MAX_POINT_LIGHTS 8
+#define MAX_SPOT_LIGHTS 4
 
 in VS_OUT
 {
@@ -25,8 +26,8 @@ uniform bool uHasDirLight;
 uniform DirLight uDirLight;
 uniform int uPointLightCount;
 uniform PointLight uPointLights[MAX_POINT_LIGHTS];
-uniform bool uHasSpot;
-uniform SpotLight uSpot;
+uniform SpotLight uSpots[MAX_SPOT_LIGHTS];
+uniform int uSpotLightCount;
 uniform bool uShadowsEnabled;
 uniform float uShadowBias;
 uniform sampler2D uShadowMap;
@@ -377,15 +378,15 @@ void main()
         result += att * blinnPhong(n, v, toLight / dist, uPointLights[i].color, albedo, specColor, shin, 1.0);
     }
 
-    if (uHasSpot)
+    for (int i = 0; i < uSpotLightCount; ++i)
     {
-        vec3 toLight = uSpot.position - fs.worldPos;
+        vec3 toLight = uSpots[i].position - fs.worldPos;
         float dist = length(toLight);
         vec3 l = toLight / dist;
-        float theta = dot(l, normalize(-uSpot.direction));
-        float cone = clamp((theta - uSpot.cosOuter) / max(uSpot.cosInner - uSpot.cosOuter, 1e-4), 0.0, 1.0);
-        float att = rangeAttenuation(dist, uSpot.range) * cone;
-        result += att * blinnPhong(n, v, l, uSpot.color, albedo, specColor, shin, 1.0);
+        float theta = dot(l, normalize(-uSpots[i].direction));
+        float cone = clamp((theta - uSpots[i].cosOuter) / max(uSpots[i].cosInner - uSpots[i].cosOuter, 1e-4), 0.0, 1.0);
+        float att = rangeAttenuation(dist, uSpots[i].range) * cone;
+        result += att * blinnPhong(n, v, l, uSpots[i].color, albedo, specColor, shin, 1.0);
     }
 
     if (uWetness > 0.001)

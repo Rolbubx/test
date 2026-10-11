@@ -25,7 +25,7 @@ public sealed class LightMarkers
     private IEnumerable<Light> Lights()
     {
         foreach (var point in Scene.PointLights) yield return point;
-        if (Scene.Spot is { } spot) yield return spot;
+        foreach (var spot in Scene.SpotLights) yield return spot;
     }
 
     /// <summary>Creates, moves and removes the markers; call every frame.</summary>

@@ -266,6 +266,36 @@ public sealed class GameObject
         _children.Add(child);
     }
 
+    /// <summary>
+    /// Moves this object under <paramref name="newParent"/> (null = back to the scene's top level) without moving it in
+    /// the world: from then on it moves, turns and scales with its parent.
+    /// </summary>
+    public void SetParent(GameObject? newParent)
+    {
+        if (newParent == Parent) return;
+        var world = Transform.WorldMatrix;
+        var scene = Scene ?? newParent?.Scene;
+        if (newParent == null)
+        {
+            Parent!.RemoveChild(this);
+            scene?.Add(this);
+        }
+        else newParent.AddChild(this);
+
+        var local = newParent == null ? world : world * Matrix4.Invert(newParent.Transform.WorldMatrix);
+        Position = local.ExtractTranslation();
+        Rotation = local.ExtractRotation();
+        Scale = local.ExtractScale();
+    }
+
+    /// <summary>True if <paramref name="other"/> is this object or one of its children (at any depth).</summary>
+    public bool Contains(GameObject other)
+    {
+        for (var p = other; p != null; p = p.Parent)
+            if (p == this) return true;
+        return false;
+    }
+
     public void RemoveChild(GameObject child)
     {
         if (!_children.Remove(child)) return;

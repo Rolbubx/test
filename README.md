@@ -104,6 +104,8 @@ to the demo, put back the placeholder `GeneratedMap.cs` (`IsGenerated = false`).
 | **Player view** | **Play** looks through the game camera; **Free view** in the toolbar flies around while the game runs, **Player view** goes back. Stop puts your editor camera back |
 | **Lighting** | select **Environment** in the Hierarchy for the sun (time of day, latitude, season), ambient, physical sky, clouds, rain and fog; every point/spot light is in the Hierarchy too, with a marker in the viewport you can pick and move |
 | **Render** | the scene's **Volume** (Hierarchy) holds tone mapping, exposure and every post-processing effect; the **Render** tab next to the Inspector has shadows, skybox, VSync and quality |
+| **Lights** | **+ > Point light** (up to 8) or **+ > Spot light** (up to 4: position, direction, cone angles, range in the Inspector) |
+| **Attach / parent** | in the Hierarchy, drag an object onto another to make it its child (it then moves, turns and scales with it), or drag a light or sound onto an object to attach it; it stays where it is in the world. Drag it onto *Drop here: back to the scene* (shown while dragging) to undo. In code: `obj.SetParent(parent)`, `light.AttachTo(obj)`, `sound.AttachTo(obj)` |
 | **Delete / Duplicate / Focus** | `Del` / `Ctrl+D` / `F` (or double-click in the Hierarchy) |
 | **Scripts** | **Project > Scripts** (bottom panel) creates scripts and opens them in your own editor (below); drag a script onto an object, in the viewport or the Hierarchy, to attach it |
 | **Scenes** | the scene button at the top of the Hierarchy opens, adds, renames and deletes scenes (below) |

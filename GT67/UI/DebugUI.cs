@@ -290,9 +290,15 @@ public sealed class DebugUI : IDisposable
             g.PopId();
         }
 
-        if (scene.Spot is { } spot && g.CollapsingHeader("Spot light", defaultOpen: false))
+        for (int i = 0; i < scene.SpotLights.Count; i++)
         {
-            g.PushId("spot");
+            var spot = scene.SpotLights[i];
+            g.PushId("spot" + i);
+            if (!g.CollapsingHeader($"{spot.Name}##spot", defaultOpen: false))
+            {
+                g.PopId();
+                continue;
+            }
             g.Check("Enabled", spot.Enabled, v => spot.Enabled = v);
             g.Drag3("Position", spot.Position, 0.05f, v => spot.Position = v);
             g.Drag3("Direction", spot.Direction, 0.01f, v => spot.Direction = v);

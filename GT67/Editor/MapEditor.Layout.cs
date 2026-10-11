@@ -254,32 +254,25 @@ public sealed partial class MapEditor
 
         foreach (var root in Scene.Roots.ToArray()) DrawSceneNode(root);
 
-        for (int i = 0; i < Scene.PointLights.Count; i++)
-        {
-            var light = Scene.PointLights[i];
-            if (Matches(light.Name) && g.Selectable($"{light.Name}##pl{i}", SelectedLight == light, IconKind.Light)) SelectLight(light);
-            if (g.LastItemDoubleClicked && SelectedLight == light) FocusSelection();
-        }
-        if (Scene.Spot is { } spot && Matches("Spot light"))
-        {
-            if (g.Selectable("Spot light##spot", SelectedLight == spot, IconKind.Light)) SelectLight(spot);
-            if (g.LastItemDoubleClicked && SelectedLight == spot) FocusSelection();
-        }
+        // Lights and sounds that are not attached to an object (attached ones are listed under their object)
+        foreach (var light in Scene.PointLights.ToArray()) if (!IsAttachedHere(light.Follow)) DrawLightRow(light);
+        foreach (var spot in Scene.SpotLights.ToArray()) if (!IsAttachedHere(spot.Follow)) DrawLightRow(spot);
         foreach (var water in Scene.Waters)
         {
             if (!Matches(water.Name)) continue;
             if (g.Selectable(water.Name + "##w" + water.GetHashCode(), water == SelectedWater, IconKind.Water)) SelectWater(water);
             if (g.LastItemDoubleClicked && water == SelectedWater) FocusSelection();
         }
-        for (int i = 0; i < Scene.Sounds.Count; i++)
-        {
-            var sound = Scene.Sounds[i];
-            if (Matches(sound.Name) && g.Selectable($"{sound.Name}##snd{i}", sound == SelectedSound, IconKind.Sound)) SelectSound(sound);
-        }
+        foreach (var sound in Scene.Sounds.ToArray()) if (!IsAttachedHere(sound.Follow)) DrawSoundRow(sound);
+
+        DrawDetachZone();
     }
 
     private bool Matches(string name) =>
         _hierarchyFilter.Trim().Length == 0 || name.Contains(_hierarchyFilter.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>True when a light or sound follows an object of the open scene (it is then listed under that object).</summary>
+    private bool IsAttachedHere(GameObject? target) => target is { IsDestroyed: false } && target.Scene == Scene;
 
     private void DrawSceneNode(GameObject obj)
     {
@@ -288,25 +281,55 @@ public sealed partial class MapEditor
         bool filtering = _hierarchyFilter.Trim().Length > 0;
         if (filtering)
         {
-            // Searching: matching objects as a flat list.
+            // Searching: matching objects (and what is attached to them) as a flat list.
             if (Matches(obj.Name))
             {
                 if (g.Selectable($"{obj.Name}##{obj.Id}", obj == Selected, IconFor(obj))) Selected = obj;
-                AcceptScriptDrop(obj);
+                ObjectRowDragAndDrop(obj);
                 if (g.LastItemDoubleClicked && obj == Selected) FocusSelection();
             }
             foreach (var child in obj.Children.ToArray()) DrawSceneNode(child);
+            DrawAttached(obj);
             return;
         }
 
-        bool open = g.TreeNode($"{obj.Name}##{obj.Id}", obj == Selected, out bool clicked, obj.Children.Count == 0, IconFor(obj), defaultOpen: true);
+        bool hasAttached = Scene.PointLights.Any(l => l.Follow == obj) || Scene.SpotLights.Any(l => l.Follow == obj) || Scene.Sounds.Any(s => s.Follow == obj);
+        bool leaf = obj.Children.Count == 0 && !hasAttached;
+        bool open = g.TreeNode($"{obj.Name}##{obj.Id}", obj == Selected, out bool clicked, leaf, IconFor(obj), defaultOpen: true);
         if (clicked) Selected = obj;
-        AcceptScriptDrop(obj);
+        ObjectRowDragAndDrop(obj);
         if (g.LastItemDoubleClicked && obj == Selected) FocusSelection();
         if (!open) return;
 
         foreach (var child in obj.Children.ToArray()) DrawSceneNode(child);
+        DrawAttached(obj);
         g.TreePop();
+    }
+
+    /// <summary>The lights and sounds attached to <paramref name="obj"/>, listed under it.</summary>
+    private void DrawAttached(GameObject obj)
+    {
+        foreach (var light in Scene.PointLights.ToArray()) if (light.Follow == obj) DrawLightRow(light);
+        foreach (var spot in Scene.SpotLights.ToArray()) if (spot.Follow == obj) DrawLightRow(spot);
+        foreach (var sound in Scene.Sounds.ToArray()) if (sound.Follow == obj) DrawSoundRow(sound);
+    }
+
+    private void DrawLightRow(Light light)
+    {
+        if (!Matches(light.Name)) return;
+        var g = G;
+        string kind = light is SpotLight ? "spot" : "point";
+        if (g.Selectable($"{light.Name}##{kind}{light.GetHashCode()}", SelectedLight == light, IconKind.Light)) SelectLight(light);
+        g.DragSource(light.Name, new HierarchyDrag(light));
+        if (g.LastItemDoubleClicked && SelectedLight == light) FocusSelection();
+    }
+
+    private void DrawSoundRow(Sound sound)
+    {
+        if (!Matches(sound.Name)) return;
+        var g = G;
+        if (g.Selectable($"{sound.Name}##snd{sound.GetHashCode()}", sound == SelectedSound, IconKind.Sound)) SelectSound(sound);
+        g.DragSource(sound.Name, new HierarchyDrag(sound));
     }
 
     private IconKind IconFor(GameObject obj) =>
@@ -315,12 +338,118 @@ public sealed partial class MapEditor
         : obj.Children.Count > 0 ? IconKind.Folder
         : IconKind.Cube;
 
-    /// <summary>A script dragged from the Project panel and released on this row is attached to the object.</summary>
-    private void AcceptScriptDrop(GameObject obj)
+    // ---- hierarchy drag and drop: attach things to objects ---------------------------------------
+
+    /// <summary>Something dragged out of the Hierarchy: an object, a light or a sound.</summary>
+    private sealed record HierarchyDrag(object Item);
+
+    /// <summary>
+    /// An object row is something to drag (terrains excepted) and a place to drop onto: objects become its children,
+    /// lights and sounds get attached to it, and scripts from the Project panel get added to it.
+    /// </summary>
+    private void ObjectRowDragAndDrop(GameObject obj)
     {
         var g = G;
-        if (g.IsLastItemHovered && g.TryGetDrop(out var payload, out _) && payload is PaletteItem { Kind: "script" } script)
-            AttachScript(obj, script);
+        bool terrain = Scene.Terrains.Any(t => t.Object == obj);
+        if (!terrain) g.DragSource(obj.Name, new HierarchyDrag(obj));
+
+        if (!g.IsLastItemHovered) return;
+        if (g.DragPayload is HierarchyDrag or PaletteItem { Kind: "script" })
+            g.PanelRect(g.LastItemRect, SKColors.Transparent, 4f, g.Theme.Accent, 1.5f);
+        if (!g.TryGetDrop(out var payload, out _)) return;
+        if (payload is PaletteItem { Kind: "script" } script) AttachScript(obj, script);
+        else if (payload is HierarchyDrag drag) Attach(drag.Item, obj);
+    }
+
+    /// <summary>While something attached is being dragged: a strip to drop it on to put it back at the scene's top level.</summary>
+    private void DrawDetachZone()
+    {
+        var g = G;
+        if (g.DragPayload is not HierarchyDrag drag || !IsAttachedItem(drag.Item)) return;
+        g.Spacing(4f);
+        var rect = g.Reserve(0f, 30f);
+        bool over = g.IsLastItemHovered;
+        g.PanelRect(rect, over ? new SKColor(80, 140, 255, 50) : SKColors.Transparent, 5f, g.Theme.Accent, 1.5f);
+        g.LabelRect(rect, "Drop here: back to the scene", g.Theme.TextDim, g.Theme.FontSize, FontWeight.Regular, TextAlign.Center);
+        if (over && g.TryGetDrop(out var payload, out _) && payload is HierarchyDrag dropped) Detach(dropped.Item);
+    }
+
+    private static bool IsAttachedItem(object item) => item switch
+    {
+        GameObject obj => obj.Parent != null,
+        Light light => light.Follow != null,
+        Sound sound => sound.Follow != null,
+        _ => false,
+    };
+
+    /// <summary>Puts an object under another one, or attaches a light or sound to it; it stays where it is in the world.</summary>
+    private void Attach(object item, GameObject target)
+    {
+        if (Playing)
+        {
+            Say("Stop playing to change what is attached to what.", error: true);
+            return;
+        }
+        switch (item)
+        {
+            case GameObject child:
+                if (child.Contains(target))
+                {
+                    Say($"'{child.Name}' cannot go inside itself or one of its own children.", error: true);
+                    return;
+                }
+                if (child.Parent == target) return;
+                child.SetParent(target);
+                Selected = child;
+                Say($"'{child.Name}' is now a child of '{target.Name}': it moves, turns and scales with it.");
+                break;
+            case PointLight point:
+                point.AttachTo(target);
+                SelectLight(point);
+                Say($"'{point.Name}' is attached to '{target.Name}': it moves with it.");
+                break;
+            case SpotLight spot:
+                spot.AttachTo(target);
+                SelectLight(spot);
+                Say($"'{spot.Name}' is attached to '{target.Name}': it moves and turns with it.");
+                break;
+            case Sound sound:
+                sound.AttachTo(target);
+                if (!sound.Spatial)
+                {
+                    sound.Spatial = true;   // following only matters for a sound that comes from a place
+                    Say($"'{sound.Name}' was made 3D, so it is heard from where '{target.Name}' is.");
+                }
+                SelectSound(sound);
+                Say($"'{sound.Name}' is attached to '{target.Name}': it moves with it.");
+                break;
+        }
+    }
+
+    /// <summary>Takes an object out of its parent, or detaches a light or sound; it stays where it is.</summary>
+    private void Detach(object item)
+    {
+        switch (item)
+        {
+            case GameObject obj when obj.Parent != null:
+                string parent = obj.Parent.Name;
+                obj.SetParent(null);
+                Selected = obj;
+                Say($"'{obj.Name}' is no longer a child of '{parent}'.");
+                break;
+            case PointLight point:
+                point.AttachTo(null);
+                Say($"'{point.Name}' is no longer attached.");
+                break;
+            case SpotLight spot:
+                spot.AttachTo(null);
+                Say($"'{spot.Name}' is no longer attached.");
+                break;
+            case Sound sound:
+                sound.AttachTo(null);
+                Say($"'{sound.Name}' is no longer attached.");
+                break;
+        }
     }
 
     /// <summary>Unity's "+" menu: everything that can be added to the scene.</summary>
@@ -336,6 +465,7 @@ public sealed partial class MapEditor
 
         g.SeparatorText("World");
         if (g.MenuItem("Point light", icon: IconKind.Light)) AddPointLight();
+        if (g.MenuItem("Spot light", icon: IconKind.Light)) AddSpotLight();
         if (g.MenuItem("Water (lake)", icon: IconKind.Water)) AddWater();
         if (g.MenuItem("Terrain", "T", icon: IconKind.Terrain))
         {
@@ -414,6 +544,7 @@ public sealed partial class MapEditor
             }
             g.Heading(sound.Name);
             g.TextDim("Sound");
+            DrawAttachment(sound.Follow, () => sound.AttachTo(null), "sound");
             if (!_window.DebugUI.DrawSoundSettings(sound)) SelectedSound = null;
         }
         else _window.DebugUI.DrawInspector();
@@ -453,15 +584,30 @@ public sealed partial class MapEditor
         g.Rgb("Colour", light.Color, v => light.Color = v);
         g.Slider("Intensity", light.Intensity, 0f, 10f, v => light.Intensity = v);
 
+        // An attached light keeps a changed place or direction relative to its object
         switch (light)
         {
             case PointLight point:
-                g.Drag3("Position", point.Position, 0.05f, v => point.Position = v);
+                DrawAttachment(point.Follow, () => point.AttachTo(null), "light");
+                g.Drag3("Position", point.Position, 0.05f, v =>
+                {
+                    point.Position = v;
+                    if (point.Follow != null) point.AttachTo(point.Follow);
+                });
                 g.Slider("Range", point.Range, 1f, 60f, v => point.Range = v, "0.0");
                 break;
             case SpotLight spot:
-                g.Drag3("Position", spot.Position, 0.05f, v => spot.Position = v);
-                g.Drag3("Direction", spot.Direction, 0.01f, v => spot.Direction = v);
+                DrawAttachment(spot.Follow, () => spot.AttachTo(null), "light");
+                g.Drag3("Position", spot.Position, 0.05f, v =>
+                {
+                    spot.Position = v;
+                    if (spot.Follow != null) spot.AttachTo(spot.Follow);
+                });
+                g.Drag3("Direction", spot.Direction, 0.01f, v =>
+                {
+                    spot.Direction = v;
+                    if (spot.Follow != null) spot.AttachTo(spot.Follow);
+                });
                 g.Slider("Inner angle", spot.InnerAngle, 1f, 80f, v => spot.InnerAngle = v, "0");
                 g.Slider("Outer angle", spot.OuterAngle, 1f, 89f, v => spot.OuterAngle = v, "0");
                 g.Slider("Range", spot.Range, 1f, 80f, v => spot.Range = v, "0.0");
@@ -469,12 +615,29 @@ public sealed partial class MapEditor
         }
 
         g.Spacing(4f);
-        if (light is PointLight p && g.IconTextButton(IconKind.Trash, "Delete light", 0f, ButtonStyle.Danger))
+        if (g.IconTextButton(IconKind.Trash, "Delete light", 0f, ButtonStyle.Danger))
         {
-            Scene.PointLights.Remove(p);
-            SelectLight(null);
+            DeleteSelection();
+            return;
         }
-        g.TextWrapped("Drag the light in the viewport with the Move tool (W).", dim: true);
+        g.TextWrapped("Drag the light in the viewport with the Move tool (W). In the Hierarchy, drag it onto an object to attach it.", dim: true);
+    }
+
+    /// <summary>"Attached to 'X'" with a Detach button, for a light or sound that follows an object.</summary>
+    private void DrawAttachment(GameObject? target, Action detach, string what)
+    {
+        var g = G;
+        if (target is not { IsDestroyed: false })
+        {
+            g.TextDim($"Not attached: drag the {what} onto an object in the Hierarchy to make it follow the object.");
+            return;
+        }
+        g.TextDim($"Attached to '{target.Name}': it moves with it.");
+        if (g.IconTextButton(IconKind.Close, "Detach", 110f))
+        {
+            detach();
+            Say($"Detached from '{target.Name}'.");
+        }
     }
 
     // The name typed for "Save as prefab", reset when another object is selected.

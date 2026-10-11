@@ -111,6 +111,9 @@ public sealed class Sun : Light
 
     // ---- update ----------------------------------------------------------------------------------
 
+    /// <summary>The sun is infinitely far away: it is never attached to an object.</summary>
+    internal override void FollowObject() { }
+
     /// <summary>Advances time and refreshes the atmospheric lighting. Called by <see cref="Scene.Update"/>.</summary>
     public void Update(Scene scene, float deltaTime)
     {

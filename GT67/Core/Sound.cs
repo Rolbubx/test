@@ -90,8 +90,18 @@ public sealed class Sound : IDisposable
     /// <summary>Beyond this distance a spatial sound can no longer be heard.</summary>
     public float MaxDistance { get; set; } = 40f;
 
-    /// <summary>A spatial sound that sticks to this object (its position is copied every frame).</summary>
+    /// <summary>A spatial sound that sticks to this object (it moves with it every frame). <see cref="AttachTo"/> sets it.</summary>
     public GameObject? Follow { get; set; }
+
+    /// <summary>Where the sound sits in the followed object's own coordinates (zero = at the object's origin).</summary>
+    public Vector3 FollowOffset { get; set; }
+
+    /// <summary>Attaches the sound to <paramref name="obj"/> where it is now, so it moves with it; null detaches it.</summary>
+    public void AttachTo(GameObject? obj)
+    {
+        Follow = obj;
+        if (obj != null) FollowOffset = Light.ToLocal(obj, Position);
+    }
 
     // ---- state -----------------------------------------------------------------------------------
 
@@ -201,7 +211,7 @@ public sealed class Sound : IDisposable
     /// <summary>Called by the scene every frame: follows its object and handles <see cref="PlayOnStart"/>.</summary>
     internal void Update(Scene scene)
     {
-        if (Follow is { IsDestroyed: false } target) Position = target.WorldPosition;
+        if (Follow is { IsDestroyed: false } target) Position = Light.ToWorld(target, FollowOffset);
 
         if (scene.Simulate)
         {

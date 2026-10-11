@@ -877,19 +877,22 @@ public sealed class Renderer : IDisposable
         }
         shader.SetInt("uPointLightCount", count);
 
-        var spot = scene.Spot;
-        bool hasSpot = spot is { Enabled: true };
-        shader.SetBool("uHasSpot", hasSpot);
-        if (hasSpot)
+        int spots = 0;
+        foreach (var spot in scene.SpotLights)
         {
-            shader.SetVector3("uSpot.position", spot!.Position);
-            shader.SetVector3("uSpot.direction", spot.Direction);
-            shader.SetVector3("uSpot.color", MathUtil.ToLinear(spot.Color) * spot.Intensity);
-            shader.SetFloat("uSpot.range", spot.Range);
-            shader.SetFloat("uSpot.cosInner", MathF.Cos(spot.InnerAngle * MathUtil.Deg2Rad));
-            shader.SetFloat("uSpot.cosOuter", MathF.Cos(spot.OuterAngle * MathUtil.Deg2Rad));
+            if (!spot.Enabled || spots >= Scene.MaxSpotLights) continue;
+            string field = SpotLightFields[spots++];
+            shader.SetVector3(field + ".position", spot.Position);
+            shader.SetVector3(field + ".direction", spot.Direction);
+            shader.SetVector3(field + ".color", MathUtil.ToLinear(spot.Color) * spot.Intensity);
+            shader.SetFloat(field + ".range", spot.Range);
+            shader.SetFloat(field + ".cosInner", MathF.Cos(spot.InnerAngle * MathUtil.Deg2Rad));
+            shader.SetFloat(field + ".cosOuter", MathF.Cos(spot.OuterAngle * MathUtil.Deg2Rad));
         }
+        shader.SetInt("uSpotLightCount", spots);
     }
+
+    private static readonly string[] SpotLightFields = Enumerable.Range(0, Scene.MaxSpotLights).Select(i => $"uSpots[{i}]").ToArray();
 
     private static string[] BuildPointLightFields()
     {

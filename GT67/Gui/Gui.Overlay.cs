@@ -113,6 +113,9 @@ public sealed partial class Gui
     /// <summary>True while something is being dragged out of the UI.</summary>
     public bool HasDragPayload => _dragPayload != null;
 
+    /// <summary>What is being dragged right now (null when nothing is), so drop targets can show themselves.</summary>
+    public object? DragPayload => _dragPayload;
+
     /// <summary>
     /// True on the frame a drag was released: gives the payload and whether the mouse was over a UI window
     /// (otherwise it was dropped on the 3D view).
