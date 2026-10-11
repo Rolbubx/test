@@ -96,7 +96,7 @@ public sealed class UiCanvas : IDisposable
 
     // ---- layout ----------------------------------------------------------------------------------
 
-    /// <summary>The rectangle of <paramref name="element"/> given the rectangle of its parent (or the screen).</summary>
+    /// <summary>The rectangle of <paramref name="e"/> given the rectangle of its parent (or the screen).</summary>
     public UiRect Resolve(UiElement e, UiRect parent)
     {
         float s = Scale;

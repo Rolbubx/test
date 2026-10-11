@@ -133,7 +133,7 @@ public sealed class Sound : IDisposable
         AudioEngine.Start(this);
     }
 
-    /// <summary>Starts from the beginning and fades in over <paramref name="seconds"/>.</summary>
+    /// <summary>Starts from the beginning and fades in over <paramref name="fadeInSeconds"/>.</summary>
     public void Play(float fadeInSeconds)
     {
         Play();
