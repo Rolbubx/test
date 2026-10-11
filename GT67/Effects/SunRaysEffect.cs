@@ -128,6 +128,7 @@ public sealed class SunRaysEffect : PostEffect
         var light = sun.LightColor * scene.LightDim;
         _composite.SetVector3("uShaftColor", light * (Math.Clamp(Shafts, 0f, 5f) * 0.18f * _sunFade));
         _composite.SetFloat("uDarken", shafts ? Math.Clamp(ShadowContrast, 0f, 1f) * MathF.Min(Shafts, 1f) * _sunFade : 0f);
+        _composite.SetVector3("uBeamColor", light * 0.6f);
         float peak = MathF.Max(light.X, MathF.Max(light.Y, MathF.Max(light.Z, 1e-4f)));
         _composite.SetVector3("uGlareColor", light / peak * (Math.Clamp(Intensity, 0f, 2f) * _screenFade * _sunFade));
         context.BindTexture(TextureUnit.Texture1, _shaftA!.ColorTexture);
