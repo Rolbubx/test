@@ -451,7 +451,8 @@ public sealed class ShaderLibrary : IDisposable
         "objectPosition", "view", "time", "base", "vertexColor", "screenUV", "sunDirection", "sunColor", "wetness",
         "hash", "hash2", "noise", "fbm", "voronoi", "remap", "saturate", "rotate", "hsv", "rgbToHsv", "fresnel",
         "stripes", "checker", "circle", "triplanar", "bump",
-        "color", "resolution", "depth", "sampleScene", "sampleDepth", "dither",
+        "color", "resolution", "depth", "sampleScene", "sampleDepth", "dither", "worldPosition", "cameraPosition",
+        "sampleWorld", "isSky",
     };
 
     // ---- generated GLSL ----------------------------------------------------------------------------
@@ -654,11 +655,14 @@ public sealed class ShaderLibrary : IDisposable
         s.AppendLine("uniform float uTime;");
         s.AppendLine("uniform float uNear;");
         s.AppendLine("uniform float uFar;");
+        s.AppendLine("uniform mat4 uInvViewProjection;");
+        s.AppendLine("uniform vec3 uCameraPosition;");
         s.Append(Uniforms(shader));
         s.AppendLine("float fwidthSafe(float x) { return fwidth(x); }");
         s.AppendLine(Library);
         s.AppendLine(ScreenLibrary);
-        s.AppendLine("void userScreen(inout vec3 color, vec2 uv, vec2 resolution, float time, float depth)");
+        s.AppendLine("void userScreen(inout vec3 color, vec2 uv, vec2 resolution, float time, float depth, vec3 worldPosition,");
+        s.AppendLine("                vec3 cameraPosition)");
         s.AppendLine("{");
         s.AppendLine("#line " + shader.ScreenLine);
         s.AppendLine(shader.ScreenBody);
@@ -666,7 +670,7 @@ public sealed class ShaderLibrary : IDisposable
         s.AppendLine("void main()");
         s.AppendLine("{");
         s.AppendLine("    vec3 color = texture(uInput, vUV).rgb;");
-        s.AppendLine("    userScreen(color, vUV, uResolution, uTime, sampleDepth(vUV));");
+        s.AppendLine("    userScreen(color, vUV, uResolution, uTime, sampleDepth(vUV), sampleWorld(vUV), uCameraPosition);");
         s.AppendLine("    FragColor = vec4(color, 1.0);");
         s.AppendLine("}");
         return s.ToString();
@@ -684,6 +688,17 @@ public sealed class ShaderLibrary : IDisposable
             float z = d * 2.0 - 1.0;
             return 2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear));
         }
+
+        // sampleWorld(uv): the world position (x, y, z in metres) of what is seen there; for the sky, a point on the far plane.
+        vec3 sampleWorld(vec2 p)
+        {
+            float d = texture(uDepthTexture, clamp(p, vec2(0.0), vec2(1.0))).r;
+            vec4 world = uInvViewProjection * vec4(p * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+            return world.xyz / world.w;
+        }
+
+        // isSky(uv): true where nothing was drawn (the sky).
+        bool isSky(vec2 p) { return texture(uDepthTexture, clamp(p, vec2(0.0), vec2(1.0))).r >= 1.0; }
 
         // dither(pixel): the 4x4 ordered (Bayer) dither pattern, -0.5..0.5, for a whole pixel position (uv * resolution).
         float dither(vec2 pixel)
@@ -707,9 +722,10 @@ public sealed class ShaderLibrary : IDisposable
         // Optional: 'stage hdr' runs before tone mapping (on linear light) instead of after it.
         // Optional: 'vertexSnap 120' makes every vertex snap to a coarse grid, like the first PlayStation.
 
-        // The picture: read and change 'color' (this pixel). You can read uv (0..1), resolution (pixels), time and
-        // depth (metres to what is seen here), and call sampleScene(uv), sampleDepth(uv) and dither(pixel), plus the
-        // library: noise, fbm, voronoi, hash, remap, saturate, rotate, hsv, rgbToHsv, stripes, checker, circle.
+        // The picture: read and change 'color' (this pixel). You can read uv (0..1), resolution (pixels), time,
+        // depth (metres from the camera to what is seen here), worldPosition (where that is: .y is its height) and
+        // cameraPosition, and call sampleScene(uv), sampleDepth(uv), sampleWorld(uv), isSky(uv) and dither(pixel), plus
+        // the library: noise, fbm, voronoi, hash, remap, saturate, rotate, hsv, rgbToHsv, stripes, checker, circle.
         screen
         {
             vec3 look = color * Tint * (0.85 + 0.15 * stripes(uv.y, Lines));

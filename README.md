@@ -305,9 +305,11 @@ screen
 }
 ```
 
-The block reads and changes `color` (this pixel), reads `uv` (0..1), `resolution` (pixels), `time` and `depth` (metres to
-what is seen there), and can call `sampleScene(uv)`, `sampleDepth(uv)`, `dither(pixel)` (4x4 Bayer, -0.5..0.5) and the
-library above. Bundled: **PS1** (240p big pixels, 15-bit colour with dithering, vertex wobble, optional short fog) and
+The block reads and changes `color` (this pixel), reads `uv` (0..1), `resolution` (pixels), `time`, `depth` (metres from
+the camera to what is seen there), `worldPosition` (where that is in the world: `worldPosition.y` is its height) and
+`cameraPosition`, and can call `sampleScene(uv)`, `sampleDepth(uv)`, `sampleWorld(uv)`, `isSky(uv)`, `dither(pixel)`
+(4x4 Bayer, -0.5..0.5) and the library above. For example `if (!isSky(uv) && worldPosition.y < 20.0) color *= 0.5;`
+darkens everything below 20 m. Bundled: **PS1** (240p big pixels, 15-bit colour with dithering, vertex wobble, optional short fog) and
 **CRT** (curved glass, scanlines, RGB mask, colour bleed). From a script:
 
 ```csharp
