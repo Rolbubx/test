@@ -19,8 +19,8 @@ namespace GT67.Effects;
 /// </summary>
 public sealed class SunRaysEffect : PostEffect
 {
-    private Shader? _mask, _blur, _shafts, _temporal, _shaftBlur, _composite;
-    private Framebuffer? _maskTarget, _rayTarget, _shaftA, _shaftB;
+    private Shader? _mask, _blur, _shafts, _temporal, _shaftBlur, _lanes, _composite;
+    private Framebuffer? _maskTarget, _rayTarget, _shaftA, _shaftB, _lanesTarget;
     private readonly Framebuffer?[] _history = new Framebuffer?[2];
     private int _historyIndex;
     private bool _historyValid;
@@ -95,7 +95,7 @@ public sealed class SunRaysEffect : PostEffect
     /// <summary>Share of the light scattered evenly in every direction: the shafts stay visible looking away from the sun.</summary>
     public float Spread { get; set; } = 0.35f;
 
-    /// <summary>Contrast of the big beams between the clouds: lit lanes of air brighter, shadowed ones a little darker (0..1).</summary>
+    /// <summary>Contrast of the big beams between the clouds: lanes of lit air brighter than the plain sky around them (0..1).</summary>
     public float ShadowContrast { get; set; } = 0.85f;
 
     /// <summary>The clouds' shadows cut beams into the air (big rays through the gaps between clouds).</summary>
@@ -133,6 +133,7 @@ public sealed class SunRaysEffect : PostEffect
         _blur ??= LoadShader(context, "fx_sun_blur");
         _shafts ??= LoadShader(context, "fx_sun_shafts");
         _temporal ??= LoadShader(context, "fx_sun_shafts_temporal");
+        _lanes ??= LoadShader(context, "fx_sun_lanes");
         _shaftBlur ??= LoadShader(context, "fx_sun_shafts_blur");
         _composite ??= LoadShader(context, "fx_sun_composite");
         EnsureTargets(context);
@@ -170,6 +171,8 @@ public sealed class SunRaysEffect : PostEffect
         _composite.SetFloat("uExtinction", shafts && HazeDimsScene ? MathF.Min(strength, 1f) : 0f);
         _composite.SetFloat("uDarken", shafts ? Math.Clamp(ShadowContrast, 0f, 1f) * MathF.Min(strength, 1f) * _sunFade : 0f);
         _composite.SetVector3("uBeamColor", light * 0.6f);
+        _composite.SetInt("uLanes", 4);
+        _composite.SetVector3("uSunDir", sun.DirectionToSun);
         _composite.SetMatrix4("uInvViewProj", invViewProj);
         _composite.SetVector3("uCameraPos", camera.Position);
         _composite.SetVector3("uFront", camera.Front);
@@ -181,6 +184,7 @@ public sealed class SunRaysEffect : PostEffect
         float glareStrength = Math.Clamp(Intensity, 0f, 2f) * (shafts ? 1f : 1.5f);
         _composite.SetVector3("uGlareColor", light / peak * (glareStrength * _screenFade * _sunFade));
         context.BindTexture(TextureUnit.Texture3, context.DepthTexture);
+        context.BindTexture(TextureUnit.Texture4, _lanesTarget!.ColorTexture);
         context.BindTexture(TextureUnit.Texture1, _shaftA!.ColorTexture);
         context.BindTexture(TextureUnit.Texture2, _rayTarget!.ColorTexture);
         context.BindTexture(TextureUnit.Texture0, input);
@@ -298,8 +302,14 @@ public sealed class SunRaysEffect : PostEffect
         context.BindTexture(TextureUnit.Texture0, _shaftB.ColorTexture);
         context.DrawQuad();
 
-        // Mipmaps: the composite compares every pixel with the average of its surroundings (the lanes of the big beams)
-        GL.BindTexture(TextureTarget.Texture2D, _shaftA.ColorTexture);
+        // The far pixels only, mipmapped: the composite compares every far pixel with the average of the far pixels
+        // around it (the lanes of the big beams), without the floor or nearby objects leaking into the sky
+        _lanesTarget!.Bind();
+        _lanes!.Use();
+        _lanes.SetInt("uShafts", 0);
+        context.BindTexture(TextureUnit.Texture0, _shaftA.ColorTexture);
+        context.DrawQuad();
+        GL.BindTexture(TextureTarget.Texture2D, _lanesTarget.ColorTexture);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
         GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
     }
@@ -318,6 +328,8 @@ public sealed class SunRaysEffect : PostEffect
         _rayTarget ??= Framebuffer.CreateColor(w, h, 0, hdr: true, DepthMode.None);
         _shaftA ??= Framebuffer.CreateColor(w, h, 0, hdr: true, DepthMode.None);
         _shaftB ??= Framebuffer.CreateColor(w, h, 0, hdr: true, DepthMode.None);
+        _lanesTarget ??= Framebuffer.CreateColor(w, h, 0, hdr: true, DepthMode.None);
+        _lanesTarget.Resize(w, h);
         for (int i = 0; i < 2; i++)
         {
             _history[i] ??= Framebuffer.CreateColor(w, h, 0, hdr: true, DepthMode.None);
@@ -336,6 +348,7 @@ public sealed class SunRaysEffect : PostEffect
         _rayTarget?.Dispose();
         _shaftA?.Dispose();
         _shaftB?.Dispose();
+        _lanesTarget?.Dispose();
         foreach (var history in _history) history?.Dispose();
         base.Dispose();
     }
