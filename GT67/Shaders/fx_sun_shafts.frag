@@ -1,12 +1,18 @@
 in vec2 vUV;
 out vec4 FragColor;
 
-// Volumetric sun shafts (half resolution): every pixel marches along its view ray through a thin haze of air and adds
-// the sunlight scattered towards the camera wherever that air is lit. Objects (the shadow map) and clouds (the cloud
-// field) leave shadowed lanes in it, so the shafts exist in the world: they are seen in every direction, brightest
-// towards the sun, and keep their shape when the sun is behind the camera.
-// Output: r = light scattered towards the camera (multiplied by the sun's colour later), g = distance (for the blur),
-// b = the same if nothing cast a shadow (r / b is how lit the air on this ray is), a = how much haze the ray crosses.
+// Volumetric sun shafts (half resolution): every pixel marches along its view ray and adds up the sunlight that the
+// air scatters towards the camera wherever that air is lit. Two layers of air:
+// - the ground haze around the player (dense, a few tens of metres): where the shadows of trees, walls and other
+//   objects (the shadow map) cut the visible beams. It also dims what lies behind it and glows with the sky's light,
+//   so its shadowed lanes are bluish air, never black;
+// - the thin air up to the clouds (kilometres): the big beams between the clouds (the cloud field).
+// The light is integrated in the energy-conserving way of Frostbite's volumetrics (Hillaire 2015): each step adds
+// what its slab of air scatters, (1 - exp(-density * length)), seen through the air in front of it.
+// Output: r = sunlight scattered towards the camera (times the sun's light later), g = distance (for the blur and
+// the reprojection), b = how much of the thin air on this ray is in a cloud's shadow, times how thick that air is
+// (the composite compares it with the rays around: the lanes of the big beams), a = how much of what lies behind
+// gets through the ground haze (which glows with the sky's light by 1 - a).
 
 uniform sampler2D uDepth;
 uniform sampler2D uShadowMap;
@@ -20,12 +26,18 @@ uniform float uFar;
 uniform float uFrame;
 
 uniform vec3 uSunDir;          // towards the sun
-uniform float uHaze;           // scattering per metre at ground level
-uniform float uHeightFalloff;  // per metre of height
-uniform float uMaxDistance;
-uniform int uSteps;
 uniform float uForward;        // forward scattering (Henyey-Greenstein g)
 uniform float uSpread;         // share of light scattered evenly in every direction (shafts seen looking away)
+
+uniform float uGroundHaze;     // density of the ground haze per metre, at and below the camera's height
+uniform float uGroundHeight;   // the ground haze thins by e every this many metres above the camera
+uniform float uGroundRange;    // and fades out this far from the camera
+uniform int uSteps;
+
+uniform float uHaze;           // the thin air: scattering per metre at height 0
+uniform float uHeightFalloff;  // per metre of height
+uniform float uMaxDistance;
+uniform float uSkyShare;       // how bright the thin air's beams are next to the ground haze
 
 // clouds cast the big shafts (same cloud field as sky.frag)
 uniform bool uCloudShadows;
@@ -45,6 +57,7 @@ uniform float uCloudWeatherScale;
 uniform float uCloudVariation;
 
 const float PI = 3.14159265;
+const int SKY_STEPS = 12;
 
 float cloudWeather(vec2 xz)
 {
@@ -125,31 +138,55 @@ void main()
     float tEnd = uMaxDistance;
     if (depth < 0.99999) tEnd = min(linearDepth(depth) / max(dot(dir, uFront), 1e-3), uMaxDistance);
 
-    // A different offset for every pixel and frame: the blur turns the noise into smooth shafts instead of bands
+    // Interleaved gradient noise (Jimenez 2014), moved every frame: a different start for every pixel and frame.
+    // The reprojection and the blur average the offsets into smooth beams instead of steps.
     float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy + uFrame * 5.588238, vec2(0.06711056, 0.00583715))));
 
-    // Samples crowd near the camera (t grows with the square), where shadows change fastest
+    // ---- the ground haze: samples crowd near the camera (t grows with the square), where shadows change fastest
+    float tGround = min(tEnd, uGroundRange);
     float n = float(uSteps);
-    float transmittance = 1.0;
-    float lit = 0.0, full = 0.0, haze = 0.0;
-    for (int i = 0; i < uSteps; ++i)
+    float transmittance = 1.0, sunGround = 0.0;
+    if (uGroundHaze > 0.0)
     {
-        float a0 = (float(i) + jitter) / n, a1 = (float(i) + 1.0 + jitter) / n;
-        float t = tEnd * a0 * a0;
-        float dt = tEnd * (a1 * a1 - a0 * a0);
-        vec3 p = uCameraPos + dir * t;
-        float density = uHaze * exp(-max(p.y, 0.0) * uHeightFalloff);
-        float sigma = density * dt;
-        float visibility = shadowVisibility(p) * cloudSunVisibility(p);
-        lit += transmittance * sigma * visibility;
-        full += transmittance * sigma;
-        haze += sigma;
-        transmittance *= exp(-sigma);
+        for (int i = 0; i < uSteps; ++i)
+        {
+            float a0 = (float(i) + jitter) / n, a1 = min((float(i) + 1.0 + jitter) / n, 1.0);
+            float t = tGround * a0 * a0;
+            float dt = tGround * (a1 * a1 - a0 * a0);
+            vec3 p = uCameraPos + dir * t;
+            float above = max(p.y - uCameraPos.y, 0.0);
+            float density = uGroundHaze * exp(-above / uGroundHeight) * (1.0 - smoothstep(uGroundRange * 0.55, uGroundRange, t));
+            float slab = 1.0 - exp(-density * dt);   // the share of light this slab scatters (energy-conserving)
+            sunGround += transmittance * slab * shadowVisibility(p) * cloudSunVisibility(p);
+            transmittance *= 1.0 - slab;
+        }
+    }
+    // ---- the thin air up to the clouds: the big beams between the clouds, kilometres long
+    float sunSky = 0.0, fullSky = 0.0, hazeSky = 0.0;
+    if (uHaze > 0.0 && uSkyShare > 0.0)
+    {
+        float skyT = 1.0;
+        for (int i = 0; i < SKY_STEPS; ++i)
+        {
+            float a0 = (float(i) + jitter) / float(SKY_STEPS), a1 = min((float(i) + 1.0 + jitter) / float(SKY_STEPS), 1.0);
+            float t = tEnd * a0 * a0;
+            float dt = tEnd * (a1 * a1 - a0 * a0);
+            vec3 p = uCameraPos + dir * t;
+            float slab = 1.0 - exp(-uHaze * exp(-max(p.y, 0.0) * uHeightFalloff) * dt);
+            sunSky += skyT * slab * shadowVisibility(p) * cloudSunVisibility(p);
+            fullSky += skyT * slab;
+            hazeSky += slab;
+            skyT *= 1.0 - slab;
+        }
     }
 
     // Brightest towards the sun (forward scattering), still there looking away (the even share)
     float cosTheta = dot(dir, uSunDir);
-    float phase = mix(henyeyGreenstein(cosTheta, uForward), 1.0 / (4.0 * PI), uSpread) * 4.0 * PI;
+    // Times pi: the engine lights a white surface with the full sun (no 1/pi), so evenly scattered haze gets a quarter of it
+    float phase = mix(henyeyGreenstein(cosTheta, uForward), 1.0 / (4.0 * PI), uSpread) * PI;
 
-    FragColor = vec4(lit * phase, tEnd, full * phase, haze);
+    // The share of the thin air in shadow on this ray, times how thick that air is: the composite compares it with the
+    // rays around (darker lanes in the shadows of clouds, bright beams through the gaps)
+    float lanes = fullSky > 1e-6 ? (1.0 - clamp(sunSky / fullSky, 0.0, 1.0)) * (1.0 - exp(-hazeSky * 2.5)) : 0.0;
+    FragColor = vec4((sunGround + sunSky * uSkyShare) * phase, tEnd, lanes, transmittance);
 }
