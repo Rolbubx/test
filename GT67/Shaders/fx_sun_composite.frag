@@ -45,6 +45,7 @@ vec4 upsampledShafts()
     vec3 dir = viewDirection();
     float distance = uMaxDistance;
     if (depth < 0.99999) distance = min(linearDepth(depth) / max(dot(dir, uFront), 1e-3), uMaxDistance);
+    else if (dir.y < -1e-4) distance = min(uMaxDistance, (uCameraPos.y - min(0.0, uCameraPos.y - 10.0)) / -dir.y);   // the ground
 
     ivec2 size = textureSize(uShafts, 0);
     vec2 pos = vUV * vec2(size) - 0.5;
@@ -61,7 +62,7 @@ vec4 upsampledShafts()
         vec4 s = texelFetch(uShafts, clamp(base + o, ivec2(0), size - 1), 0);
         float gap = abs(s.g - distance);
         float bilinear = (o.x == 1 ? f.x : 1.0 - f.x) * (o.y == 1 ? f.y : 1.0 - f.y);
-        float w = bilinear * exp(-gap / (distance * 0.03 + 0.1)) + 1e-6 * bilinear;
+        float w = bilinear * exp(-gap / (distance * 0.12 + 0.1)) + 1e-6 * bilinear;
         sum += s * w;
         total += w;
         if (gap < nearestGap) { nearestGap = gap; nearest = s; }

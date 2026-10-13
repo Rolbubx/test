@@ -16,7 +16,7 @@ void main()
     {
         vec4 s = texture(uInput, vUV + uStep * float(i));
         float spatial = exp(-float(i * i) / 18.0);
-        float sameSurface = exp(-abs(s.g - centre.g) / max(centre.g * 0.06, 0.25));
+        float sameSurface = exp(-abs(s.g - centre.g) / max(centre.g * 0.12, 0.25));
         float w = spatial * sameSurface;
         sum += s.rba * w;
         total += w;

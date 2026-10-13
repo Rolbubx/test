@@ -71,6 +71,12 @@ public sealed class SunRaysEffect : PostEffect
     /// <summary>How far from the camera the ground haze reaches, in metres (it fades out over the last half).</summary>
     public float GroundHazeRange { get; set; } = 40f;
 
+    /// <summary>How patchy the ground haze is: denser and thinner patches drifting in the wind (0 = even, 1 = very patchy).</summary>
+    public float HazeNoise { get; set; } = 0.5f;
+
+    /// <summary>Size of the haze patches, in metres.</summary>
+    public float HazeNoiseSize { get; set; } = 14f;
+
     /// <summary>The ground haze dims what lies behind it, as real haze does (off: it only adds light).</summary>
     public bool HazeDimsScene { get; set; } = true;
 
@@ -247,6 +253,12 @@ public sealed class SunRaysEffect : PostEffect
         _shafts.SetFloat("uGroundHaze", Math.Clamp(GroundHaze, 0f, 0.5f));
         _shafts.SetFloat("uGroundHeight", Math.Clamp(GroundHazeHeight, 0.5f, 5000f));
         _shafts.SetFloat("uGroundRange", Math.Clamp(GroundHazeRange, 5f, 5000f));
+        float noiseScale = 1f / Math.Clamp(HazeNoiseSize, 0.5f, 1000f);
+        var wind = clouds != null ? clouds.WindDirection * MathF.Max(clouds.WindSpeed * 0.1f, 0.6f) : new Vector2(1f, 0.3f);
+        _shafts.SetFloat("uNoise", Math.Clamp(HazeNoise, 0f, 1f));
+        _shafts.SetFloat("uNoiseScale", noiseScale);
+        _shafts.SetVector2("uWind", wind * noiseScale);
+        _shafts.SetFloat("uTime", context.Time);
         _shafts.SetFloat("uSkyShare", 0.72f);   // as bright as before the ground haze was added
         _shafts.SetFloat("uHaze", Math.Clamp(Haze, 0f, 0.05f));
         _shafts.SetFloat("uHeightFalloff", MathF.Max(HeightFalloff, 1e-5f));

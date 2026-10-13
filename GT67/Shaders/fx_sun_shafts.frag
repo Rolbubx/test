@@ -33,6 +33,10 @@ uniform float uGroundHaze;     // density of the ground haze per metre, at and b
 uniform float uGroundHeight;   // the ground haze thins by e every this many metres above the camera
 uniform float uGroundRange;    // and fades out this far from the camera
 uniform int uSteps;
+uniform float uNoise;          // how patchy the ground haze is (0 = even)
+uniform float uNoiseScale;     // 1 / size of the patches, per metre
+uniform vec2 uWind;            // drift of the patches, metres per second (x, z) times uNoiseScale
+uniform float uTime;
 
 uniform float uHaze;           // the thin air: scattering per metre at height 0
 uniform float uHeightFalloff;  // per metre of height
@@ -129,14 +133,47 @@ float linearDepth(float d)
     return 2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear));
 }
 
+// How far the view ray goes: to the surface it hits, or for the sky as far as the shafts are traced. Below the horizon
+// with nothing drawn there, the ray stops at the ground (height 0, or a little under the camera if it is lower):
+// it must not march through kilometres of haze under the world, which drew streaks below the horizon.
+float viewDistance(float depth, vec3 dir)
+{
+    if (depth < 0.99999) return min(linearDepth(depth) / max(dot(dir, uFront), 1e-3), uMaxDistance);
+    float ground = min(0.0, uCameraPos.y - 10.0);
+    if (dir.y < -1e-4) return min(uMaxDistance, (uCameraPos.y - ground) / -dir.y);
+    return uMaxDistance;
+}
+
+// Smooth 3D value noise, for the haze drifting in the wind (denser and thinner patches, as in the volumetric fog of
+// Assassin's Creed IV: procedural noise animated by the wind)
+float hash(vec3 p)
+{
+    p = fract(p * 0.3183099 + 0.1);
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+float valueNoise(vec3 p)
+{
+    vec3 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(hash(i), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y),
+               mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+
+float hazeNoise(vec3 p)
+{
+    vec3 q = p * uNoiseScale + vec3(uWind.x, 0.0, uWind.y) * uTime;
+    return valueNoise(q) * 0.65 + valueNoise(q * 2.7 + 13.1) * 0.35;
+}
+
 void main()
 {
     float depth = texture(uDepth, vUV).r;
     vec4 far = uInvViewProj * vec4(vUV * 2.0 - 1.0, 1.0, 1.0);
     vec3 dir = normalize(far.xyz / far.w - uCameraPos);
 
-    float tEnd = uMaxDistance;
-    if (depth < 0.99999) tEnd = min(linearDepth(depth) / max(dot(dir, uFront), 1e-3), uMaxDistance);
+    float tEnd = viewDistance(depth, dir);
 
     // Interleaved gradient noise (Jimenez 2014), moved every frame: a different start for every pixel and frame.
     // The reprojection and the blur average the offsets into smooth beams instead of steps.
@@ -156,6 +193,7 @@ void main()
             vec3 p = uCameraPos + dir * t;
             float above = max(p.y - uCameraPos.y, 0.0);
             float density = uGroundHaze * exp(-above / uGroundHeight) * (1.0 - smoothstep(uGroundRange * 0.55, uGroundRange, t));
+            if (uNoise > 0.0) density *= max(1.0 - uNoise + uNoise * 2.0 * hazeNoise(p), 0.0);
             float slab = 1.0 - exp(-density * dt);   // the share of light this slab scatters (energy-conserving)
             sunGround += transmittance * slab * shadowVisibility(p) * cloudSunVisibility(p);
             transmittance *= 1.0 - slab;
