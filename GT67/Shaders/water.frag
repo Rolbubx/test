@@ -215,6 +215,21 @@ float linearDepth(float d)
     return 2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear));
 }
 
+#include "water_surf.glsl"
+
+// How a value measured per pixel (the depth of the water) changes per metre across the ground (x, z): its change
+// from pixel to pixel, divided by how far apart those pixels are on the water. Kept to a 45 degree bed.
+vec2 depthGradient(float d, vec2 p)
+{
+    vec2 px = dFdx(p), py = dFdy(p);
+    float det = px.x * py.y - px.y * py.x;
+    if (abs(det) < 1e-10) return vec2(0.0);
+    float dx = dFdx(d), dy = dFdy(d);
+    vec2 g = vec2(dx * py.y - dy * px.y, dy * px.x - dx * py.x) / det;
+    float len = length(g);
+    return len > 1.0 ? g / len : g;
+}
+
 void main()
 {
     vec2 uv = vClip.xy / vClip.w * 0.5 + 0.5;
@@ -248,19 +263,34 @@ void main()
     slope += rainRipples(p, uTime, uRain, footprint, rainSplash);
     float splashFoam;
     slope += splashRipples(p, splashFoam);
-    vec3 N = normalize(vec3(waveN.x + slope.x, waveN.y, waveN.z + slope.y));
 
     vec3 V = normalize(uViewPos - vWorldPos);
+
+    // Depth of the water straight down, from the depth buffer without the refraction's bending (bent depth tears the
+    // shore line and the foam into jagged bits): the view ray's length through the water times how steeply it falls.
+    float depthBelow = max(linearDepth(texture(uSceneDepth, uv).r) - fragDepth, 0.0) * clamp(V.y, 0.05, 1.0);
+
+    // Surf: the same waves as the vertex shader, at the depth of the bed under the still surface (this pixel's surface
+    // is already raised by the surf, so its lift is added back). The crest's slope tilts the normal: how the lift
+    // changes with depth, times how the depth changes across the ground (from the screen-space derivatives).
+    vec2 surfPhase = surfCycle(vBaseXZ, uRippleMap, uTime);
+    float bedDepth = depthBelow + surfAt(surfPhase, depthBelow).lift;
+    Surf surf = surfAt(surfPhase, bedDepth);
+    if (uSurfHeight > 0.0)
+    {
+        vec2 gradient = depthGradient(bedDepth, p);
+        float liftSlope = (surfAt(surfPhase, bedDepth + 0.02).lift - surfAt(surfPhase, bedDepth - 0.02).lift) / 0.04;
+        slope -= liftSlope * gradient;
+    }
+
+    vec3 N = normalize(vec3(waveN.x + slope.x, waveN.y, waveN.z + slope.y));
+
     float NdotV = max(dot(N, V), 0.0);
     float fresnel = uFresnelF0 + (1.0 - uFresnelF0) * pow(1.0 - NdotV, 5.0);
 
     // Screen-space distortion shrinks with distance: ripples a metre away bend the image a lot, ripples far out
     // barely at all, so distant water stays a sharp mirror instead of a smeared blur.
     float distortionFade = 1.0 / (1.0 + viewDistance * 0.06);
-
-    // Depth of the water straight down, from the depth buffer without the refraction's bending (bent depth tears the
-    // shore line and the foam into jagged bits): the view ray's length through the water times how steeply it falls.
-    float depthBelow = max(linearDepth(texture(uSceneDepth, uv).r) - fragDepth, 0.0) * clamp(V.y, 0.05, 1.0);
 
     // Refraction: look through the surface, bent by the ripples. The bend grows with the depth, as the light travels
     // further under the tilted surface, so shallow water at the shore stays clear instead of shredding the bed into
@@ -303,6 +333,11 @@ void main()
     float crestThin = smoothstep(0.0, 1.0, crestHeight * 0.5 + 0.5);
     color += uShallowColor * uSunColor * towardsSun * crestThin * (1.0 - fresnel) * 0.5 * uCrestLight * sunUp;
 
+    // The surf's lip is thin, clear water standing up: the sun shines through it (glassy turquoise), most when
+    // looking towards the sun
+    float lipSun = 0.25 + towardsSun * 1.5;
+    color += uShallowColor * uSunColor * surf.wave * lipSun * (1.0 - fresnel) * 0.35 * uCrestLight * sunUp;
+
     // Soft shore: fade into the untouched scene where the water gets shallow.
     float edge = uEdgeSoftness > 0.0 ? smoothstep(0.0, uEdgeSoftness, depthBelow) : 1.0;
     color = mix(texture(uSceneColor, uv).rgb, color, edge);
@@ -315,8 +350,14 @@ void main()
     float contact = 1.0 - smoothstep(0.0, w * 0.12, depthBelow);
     float phase = fract(depthBelow / w * 2.2 + uTime * 0.35 + n * 1.7);
     float wash = smoothstep(0.0, 0.06, phase) * exp(-phase * 5.0) * (1.0 - smoothstep(0.1 * w, 0.6 * w, depthBelow));
+    // With surf, the breaking waves bring the foam instead of these bands; the swash is a thin sheet of water whose
+    // leading edge and film carry a lace of foam up the sand
+    if (uSurfHeight > 0.0) wash *= 0.25;
+    float swashFoam = uSwashHeight > 0.0
+        ? surf.swash / uSwashHeight * (1.0 - smoothstep(0.0, max(surf.swash, 0.01) * 0.4, depthBelow)) * 0.45 : 0.0;
     float density = breaking * 0.6 + contact * contact * 1.1 + wash * smoothstep(0.3, 0.8, n) * 0.8
-                  + splashFoam + rainSplash * 0.6 * uRain;
+                  + splashFoam + rainSplash * 0.6 * uRain
+                  + surf.foam * (0.25 + 1.1 * smoothstep(0.3, 0.75, texture(uRippleMap, p * 0.45 + flow).a)) + swashFoam;
     float foam = foamCover(p, flow, density * uFoamAmount, footprint);
 
     // Foam is lit like a rough white surface (sun and sky), slightly see-through where it is thin.

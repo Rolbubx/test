@@ -461,6 +461,10 @@ public sealed class Renderer : IDisposable
             shader.SetFloat("uFoamAmount", water.FoamAmount);
             shader.SetFloat("uShoreFoam", water.ShoreFoamWidth);
             shader.SetFloat("uEdgeSoftness", water.EdgeSoftness);
+            shader.SetFloat("uSurfHeight", MathF.Max(water.SurfHeight, 0f));
+            shader.SetFloat("uSurfPeriod", MathF.Max(water.SurfPeriod, 0.5f));
+            shader.SetFloat("uSurfDepth", MathF.Max(water.SurfDepth, 0.1f));
+            shader.SetFloat("uSwashHeight", MathF.Max(water.SwashHeight, 0f));
             // Quadtree tiles: small near the camera, doubling in size with distance; off-screen ones are skipped. Each
             // tile morphs into the grid of the next larger one before that one takes over.
             water.SelectNodes(camera.Position, camera.Far, FrustumCulling ? frustum : null);
@@ -848,6 +852,7 @@ public sealed class Renderer : IDisposable
             var half = water.ReachHorizon ? new Vector2(1e7f) : water.Size * 0.5f;
             shader.SetVector4(CausticFields[caustics], new Vector4(water.Position.X, water.Position.Z, half.X, half.Y));
             shader.SetVector4($"uCausticInfo[{caustics}]", new Vector4(water.Level, water.Time, water.Caustics, water.WaveLength));
+            shader.SetVector4($"uShoreWet[{caustics}]", new Vector4(MathF.Max(water.WetSandHeight, 0f), 0f, 0f, 0f));
             caustics++;
         }
         shader.SetInt("uCausticCount", caustics);

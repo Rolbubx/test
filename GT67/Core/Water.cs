@@ -205,6 +205,50 @@ public sealed class Water : IDisposable
     /// <summary>Brightness of the caustics: the dancing light the waves focus onto everything under the water (0 = none).</summary>
     public float Caustics { get; set; } = 1f;
 
+    // ---- surf (a beach) -----------------------------------------------------------------------------
+
+    /// <summary>
+    /// Height of the waves rolling onto the shore, in metres (0 = none, as on a calm lake). They come in parallel to any
+    /// shore, rise as the water gets shallow, break into white water and run up the sand.
+    /// </summary>
+    public float SurfHeight { get; set; }
+
+    /// <summary>Seconds between two waves reaching the shore.</summary>
+    public float SurfPeriod { get; set; } = 7f;
+
+    /// <summary>Depth of water (m) where the waves start to rise; with a gentle beach slope, deeper means a wider surf zone.</summary>
+    public float SurfDepth { get; set; } = 1.4f;
+
+    /// <summary>How high (m) the water runs up the beach after each wave, as a thin sheet (0 = the shore line stays put).</summary>
+    public float SwashHeight { get; set; }
+
+    /// <summary>Height (m) of the band of wet, darker sand above the water (0 = none).</summary>
+    public float WetSandHeight { get; set; } = 0.12f;
+
+    /// <summary>Sets the look of clear tropical water on a sandy beach: surf, swash, turquoise shallows, strong caustics.</summary>
+    public void ApplyBeachPreset()
+    {
+        SurfHeight = 0.28f;
+        SurfPeriod = 7f;
+        SurfDepth = 1.4f;
+        SwashHeight = 0.1f;
+        WetSandHeight = 0.18f;
+        ShallowColor = new Color4(0.30f, 0.80f, 0.74f, 1f);
+        DeepColor = new Color4(0.03f, 0.24f, 0.40f, 1f);
+        Absorption = new Vector3(0.30f, 0.065f, 0.045f);
+        DepthColorRate = 0.22f;
+        WaveHeight = 0.1f;
+        WaveLength = 6f;
+        Choppiness = 0.45f;
+        RippleStrength = 0.45f;
+        RefractionStrength = 0.04f;
+        FoamAmount = 1f;
+        ShoreFoamWidth = 0.15f;
+        EdgeSoftness = 0.06f;
+        Caustics = 1.6f;
+        CrestLight = 1.3f;
+    }
+
     /// <summary>Strength of the rings moving things leave on the water (0 = they leave none).</summary>
     public float Interaction { get; set; } = 1f;
 

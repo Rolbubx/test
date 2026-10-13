@@ -288,6 +288,27 @@ float causticLight(vec3 p)
     return light;
 }
 
+// How wet the shore is at p: fully just above the water, drying out up to the wet band's height (x of uShoreWet),
+// with an uneven upper edge like the line the last big wave reached
+uniform vec4 uShoreWet[MAX_CAUSTIC_WATERS];
+
+float shoreWetness(vec3 p)
+{
+    float wet = 0.0;
+    for (int i = 0; i < uCausticCount; ++i)
+    {
+        float band = uShoreWet[i].x;
+        if (band <= 0.0) continue;
+        vec4 rect = uCausticWater[i];
+        vec2 inside = rect.zw - abs(p.xz - rect.xy);
+        if (min(inside.x, inside.y) < 0.0) continue;
+        float above = p.y - uCausticInfo[i].x;
+        float edge = band * (0.75 + 0.25 * sin(p.x * 0.9 + sin(p.z * 0.7) * 2.0) * sin(p.z * 0.53 + p.x * 0.21));
+        wet = max(wet, (1.0 - smoothstep(edge * 0.6, edge, above)) * step(-0.5, above));
+    }
+    return wet;
+}
+
 //@USER_DECLARATIONS@
 
 void main()
@@ -356,6 +377,15 @@ void main()
         }
         shin = mix(userShin, 400.0, clamp(wetAmt * 0.8 + puddle, 0.0, 1.0));
         specColor = mix(specColor * (1.0 + 2.0 * wetAmt), vec3(1.5), puddle);
+    }
+
+    // Wet sand: the band of shore the waves keep wet is darker and glossy
+    float shoreWet = shoreWetness(fs.worldPos);
+    if (shoreWet > 0.001)
+    {
+        albedo *= 1.0 - 0.3 * shoreWet;
+        shin = mix(shin, 260.0, shoreWet * 0.8);
+        specColor *= 1.0 + 2.5 * shoreWet;
     }
 
     vec3 result = uAmbient * albedo;

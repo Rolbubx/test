@@ -26,7 +26,7 @@ public sealed class Shader : IDisposable
         _vertPath = vertPath;
         _fragPath = fragPath;
         Name = Path.GetFileNameWithoutExtension(fragPath);
-        Handle = Build(File.ReadAllText(vertPath), File.ReadAllText(fragPath), Name)
+        Handle = Build(ReadSource(vertPath), ReadSource(fragPath), Name)
                  ?? throw new InvalidOperationException($"Shader '{Name}' failed to compile (see log).");
     }
 
@@ -50,8 +50,8 @@ public sealed class Shader : IDisposable
 
         try
         {
-            var vert = File.ReadAllText(_vertPath);
-            var frag = File.ReadAllText(_fragPath);
+            var vert = ReadSource(_vertPath);
+            var frag = ReadSource(_fragPath);
             int program = Build(vert, frag, Name) ?? 0;
             if (program == 0) return false;
 
@@ -66,6 +66,23 @@ public sealed class Shader : IDisposable
             Log.Error($"Shader '{Name}' reload failed: {e.Message}");
             return false;
         }
+    }
+
+    /// <summary>
+    /// A shader file's text, with every line <c>#include "other.glsl"</c> replaced by that file (next to it), so two
+    /// shaders can share code.
+    /// </summary>
+    private static string ReadSource(string path)
+    {
+        var lines = File.ReadAllLines(path);
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].Trim();
+            if (!line.StartsWith("#include \"") || !line.EndsWith('"')) continue;
+            var other = Path.Combine(Path.GetDirectoryName(path) ?? "", line[10..^1]);
+            lines[i] = File.ReadAllText(other);
+        }
+        return string.Join('\n', lines);
     }
 
     private static int? Build(string vertSource, string fragSource, string name)

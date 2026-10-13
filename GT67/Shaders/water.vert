@@ -17,6 +17,15 @@ uniform float uGridCells;
 uniform vec2 uCellSize;
 uniform vec2 uMorph;         // x = start, y = end (metres from the camera)
 
+// The surf follows the depth of the water, read from the scene drawn so far (the same depth the fragment shader uses)
+uniform sampler2D uSceneDepth;
+uniform sampler2D uRippleMap;
+uniform float uNear;
+uniform float uFar;
+uniform float uTime;
+
+#include "water_surf.glsl"
+
 out vec3 vWorldPos;
 out vec2 vBaseXZ;            // undisplaced position: the fragment shader samples the waves there per pixel
 out vec4 vClip;
@@ -55,7 +64,30 @@ void main()
 
     float spacing = max(uCellSize.x, uCellSize.y) * (1.0 + morph);
     vec4 waves = sampleWaves(base.xz, spacing);
+
+    // The depth of the water under this vertex, from the depth buffer: how far the bed lies behind the still surface
+    // along the view ray, made vertical (negative under the sand). Vertices off screen have no depth to read.
+    bool hasDepth = false;
+    float depth = 1e4;
+    vec4 still = uProjection * uView * vec4(base, 1.0);
+    vec2 screen = still.xy / max(still.w, 1e-4) * 0.5 + 0.5;
+    if (still.w > uNear && all(greaterThan(screen, vec2(-0.02))) && all(lessThan(screen, vec2(1.02))))
+    {
+        float z = textureLod(uSceneDepth, clamp(screen, vec2(0.001), vec2(0.999)), 0.0).r * 2.0 - 1.0;
+        float bed = 2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear));
+        float steep = clamp(normalize(uViewPos - base).y, 0.05, 1.0);
+        depth = (bed - still.w) * steep;
+        hasDepth = true;
+    }
+
+    // Waves lose their height in very shallow water (they would poke up through the sand at the shore and leave
+    // pockets of water on the beach); the surf takes over there.
+    waves.xyz *= mix(0.1, 1.0, smoothstep(-0.05, 0.6, depth));
     vec3 position = base + vec3(waves.y, waves.x, waves.z);
+
+    // Surf and swash: the surface rises with the depth of the water; under the sand the swash lifts it up the beach.
+    if (hasDepth && (uSurfHeight > 0.0 || uSwashHeight > 0.0))
+        position.y += surfAt(surfCycle(base.xz, uRippleMap, uTime), depth).lift;
 
     vWorldPos = position;
     vBaseXZ = base.xz;

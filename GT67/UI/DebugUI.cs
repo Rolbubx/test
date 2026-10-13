@@ -629,6 +629,16 @@ public sealed class DebugUI : IDisposable
                 g.Slider("Shore foam width", water.ShoreFoamWidth, 0.05f, 2f, v => water.ShoreFoamWidth = v);
                 g.Slider("Edge softness", water.EdgeSoftness, 0f, 1.5f, v => water.EdgeSoftness = v);
                 g.Slider("Edge fade", water.EdgeFade, 0f, 30f, v => water.EdgeFade = v, "0.0");
+
+                g.SeparatorText("Beach (surf)");
+                if (g.Button("Beach preset")) water.ApplyBeachPreset();
+                g.TextDim("Clear turquoise water, breaking waves, swash and wet sand.");
+                g.Slider("Surf height", water.SurfHeight, 0f, 1.5f, v => water.SurfHeight = v);
+                g.Slider("Surf period (s)", water.SurfPeriod, 2f, 20f, v => water.SurfPeriod = v, "0.0");
+                g.Slider("Surf depth", water.SurfDepth, 0.2f, 5f, v => water.SurfDepth = v);
+                g.Slider("Swash height", water.SwashHeight, 0f, 0.5f, v => water.SwashHeight = v, "0.00");
+                g.Slider("Wet sand height", water.WetSandHeight, 0f, 1f, v => water.WetSandHeight = v, "0.00");
+                g.Slider("Caustics", water.Caustics, 0f, 3f, v => water.Caustics = v);
             }
         }
     }
