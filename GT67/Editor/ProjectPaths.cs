@@ -13,9 +13,9 @@ public sealed class ProjectPaths
 
     public string Scripts => Path.Combine(Root, "Scripts");
     public string Generated => Path.Combine(Root, "Generated");
-    /// <summary>The generated game: several C# files plus the assets they load (Compile rewrites the whole folder).</summary>
+    /// <summary>The generated game: GeneratedGame.csproj, the one Game.cs and the assets it loads (Compile rewrites the whole folder).</summary>
     public string GeneratedGame => Path.Combine(Generated, "GeneratedGame");
-    public string GeneratedGameFile => Path.Combine(GeneratedGame, "GameGenerator.cs");
+    public string GeneratedGameFile => Path.Combine(GeneratedGame, "Game.cs");
     public string Assets => Path.Combine(Root, "Assets");
     public string Models => Path.Combine(Assets, "Models");
     public string Textures => Path.Combine(Assets, "Textures");

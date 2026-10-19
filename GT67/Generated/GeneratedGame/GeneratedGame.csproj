@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Written by the GT67 editor (Compile button); rewritten every time you press Compile. -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RollForward>Major</RollForward>
+        <AssemblyName>GeneratedGame</AssemblyName>
+        <RootNamespace>GT67.Generated</RootNamespace>
+        <StartupObject>GT67.Generated.GameProgram</StartupObject>
+        <DefineConstants>$(DefineConstants);STANDALONE_GAME</DefineConstants>
+        <!-- GT67.csproj compiles Game.cs too (the editor opens the compiled map), so this project's own copy shadows that one -->
+        <NoWarn>$(NoWarn);CS0436;1591</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\GT67.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Models, textures, sounds, meshes, shaders and UI images of the game: the game loads them from Assets/Game -->
+        <None Include="Assets\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Assets\Game\%(RecursiveDir)%(Filename)%(Extension)" />
+        <!-- The engine's own files -->
+        <None Include="..\..\Shaders\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Shaders\%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="..\..\Assets\Fonts\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Assets\Fonts\%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="..\..\Assets\Skybox\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Assets\Skybox\%(RecursiveDir)%(Filename)%(Extension)" />
+        <None Include="..\..\Prefabs\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Prefabs\%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+</Project>

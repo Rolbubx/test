@@ -68,7 +68,7 @@ if (IsEditor && !demo) generated = true;
 using var window = new Window(IsEditor ? "GT67 Editor" : "GT67", 1280, 720, maxFrames) { IsEditor = IsEditor, UncappedFps = noVsync, ScreenshotPath = screenshot };
 window.Initialize = w =>
 {
-    SetupPostProcessing(w, IsEditor);
+    GamePostProcessing.Setup(w, IsEditor);
 
     // "--camera": a fixed view for screenshots; camera scripts leave the camera alone, as in the editor's free view.
     if (cameraView is { Length: 6 } c)
@@ -116,28 +116,6 @@ return 0;
 
 static float[] ParseFloats(string text) =>
     text.Split(',').Select(s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
-
-// ---- Post-processing: effects are added in code and run in this order (HDR first, then tone map, then LDR) ------
-static void SetupPostProcessing(Window window, bool editor)
-{
-    // Every effect is added in both modes, so the editor's Main Volume shows all of them. The editor starts with the
-    // distracting ones (depth of field, chromatic aberration, grain) switched off; a compiled map stores the switches.
-    var post = window.Renderer.Post;
-    post.Add(new VolumetricFogEffect());
-    post.Add(new DepthOfFieldEffect { FocusDistance = 14f, FocusRange = 12f, MaxBlur = 6f, Enabled = !editor });
-    post.Add(new BloomEffect { Threshold = 1.0f, Intensity = 0.35f });
-    post.Add(new SunRaysEffect());
-    post.Add(new RainEffect());
-    post.Add(new ChromaticAberrationEffect { Strength = 0.004f, Enabled = !editor });
-    post.Add(new ColorCorrectionEffect { Contrast = 1.12f, Saturation = 1.12f, Vibrance = 0.3f, Temperature = 0.03f });
-    post.Add(new SharpenEffect());
-    post.Add(new VignetteEffect { Intensity = editor ? 0.25f : 0.5f });
-    post.Add(new FilmGrainEffect { Strength = 0.03f, Enabled = !editor });
-
-    // Every effect parameter can also be read and set by name (for scripts, config files, key bindings...).
-    post.Set("Bloom", "Intensity", 0.4f);
-    post.Set("ColorCorrection", "Lift", (0.01f, 0.01f, 0.03f));
-}
 
 // ---- The demo scene (what the editor and the game start with) ----------------------------------------------------
 static void BuildDemoScene(Window window)

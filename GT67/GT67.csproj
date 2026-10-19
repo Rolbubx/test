@@ -76,10 +76,12 @@
         <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
     </ItemGroup>
 
-    <!-- Compile swaps Generated/GeneratedGame in through these two folders; a leftover copy must not be built twice -->
+    <!-- Compile swaps Generated/GeneratedGame in through these two folders; a leftover copy must not be built twice.
+         Generated/GeneratedGame is also a project of its own (GeneratedGame.csproj); its build folders are not ours.
+         Game.cs itself is compiled here (the editor opens the compiled map), without its standalone Main. -->
     <ItemGroup>
-        <Compile Remove="Generated\GeneratedGame.new\**;Generated\GeneratedGame.old\**" />
-        <None Remove="Generated\GeneratedGame.new\**;Generated\GeneratedGame.old\**" />
+        <Compile Remove="Generated\GeneratedGame.new\**;Generated\GeneratedGame.old\**;Generated\GeneratedGame\obj\**;Generated\GeneratedGame\bin\**" />
+        <None Remove="Generated\GeneratedGame.new\**;Generated\GeneratedGame.old\**;Generated\GeneratedGame\obj\**;Generated\GeneratedGame\bin\**" />
     </ItemGroup>
 
     <!-- The game leaves the editor and the live script compiler out (the scripts in Scripts/ are compiled into it) -->
