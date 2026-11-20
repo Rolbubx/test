@@ -33,6 +33,7 @@ int maxFrames = 0;
 bool noVsync = false, dry = false;
 var offList = new List<string>();
 string? playSound = null;
+bool cinematic = false;
 bool noSky = false, noShadow = false, noReflect = false, generated = false, exportDemo = false, demo = false;
 #if GAME
 generated = true;   // the shipped game is the one the editor compiled (the demo scene is only a fallback)
@@ -52,6 +53,8 @@ for (int i = 1; i < argv.Length; i++)
     if (argv[i] == "--noreflect") noReflect = true;
     if (argv[i] == "--noshadow") noShadow = true;
     if (argv[i] == "--generated") generated = true;
+    if (argv[i] == "--cinematic") cinematic = true;   // the "Golden hour" fly-through (Utils/CinematicScene.cs)
+    if (argv[i] == "--cine-time" && i + 1 < argv.Length) CinematicCamera.StartTime = float.Parse(argv[i + 1], System.Globalization.CultureInfo.InvariantCulture);
     if (argv[i] == "--demo") demo = true;   // the editor: open the demo scene instead of the last compiled map
     if (argv[i] == "--export-demo") exportDemo = true;   // write the demo scene through the exporter (a test of Compile)
     if (argv[i] == "--editor") IsEditor = true;
@@ -63,6 +66,7 @@ for (int i = 1; i < argv.Length; i++)
 }
 // The editor opens the map saved by the last Compile (the demo scene only when nothing was compiled yet, or with --demo).
 if (IsEditor && !demo) generated = true;
+if (cinematic) generated = false;
 
 
 using var window = new Window(IsEditor ? "GT67 Editor" : "GT67", 1280, 720, maxFrames) { IsEditor = IsEditor, UncappedFps = noVsync, ScreenshotPath = screenshot };
@@ -91,6 +95,12 @@ window.Initialize = w =>
         return;
     }
 #endif
+
+    if (cinematic)
+    {
+        CinematicScene.Build(w);
+        return;
+    }
 
     // "--generated": the game the editor wrote with Compile (Generated/GeneratedGame) instead of the demo scene.
     if (generated && GameGenerator.IsGenerated)
