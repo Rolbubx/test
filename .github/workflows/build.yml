@@ -1,0 +1,27 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "claude/wizardly-galileo-euxdgo" ]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  rid: linux-x64 }
+          - { os: windows-latest, rid: win-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Publish game
+        run: dotnet publish GT67/GT67.csproj -c Game -r ${{ matrix.rid }} -p:GameAot=false -o out/${{ matrix.rid }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GT67-${{ matrix.rid }}
+          path: out/${{ matrix.rid }}
