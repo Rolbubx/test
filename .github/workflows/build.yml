@@ -5,6 +5,9 @@ on:
   push:
     branches: [ "claude/wizardly-galileo-euxdgo" ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -25,3 +28,21 @@ jobs:
         with:
           name: GT67-${{ matrix.rid }}
           path: out/${{ matrix.rid }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Zip and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for r in linux-x64 win-x64; do
+            (cd artifacts/GT67-$r && zip -qr ../../GT67-$r.zip .)
+          done
+          gh release create "build-${{ github.run_number }}" GT67-linux-x64.zip GT67-win-x64.zip \
+            --repo "${{ github.repository }}" --target "${{ github.sha }}" \
+            --title "GT67 build ${{ github.run_number }}" --notes "Game build (linux-x64, win-x64)"
