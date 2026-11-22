@@ -137,7 +137,7 @@ float cloudDensity(vec3 p, float lod, bool detail)
     // Random weather: how much cloud here, and how tall it grows (towers where it is thick, flat where thin).
     float weather = cloudWeather(p.xz + uCloudOffset.xz);
     float top = mix(1.0, 0.35 + 0.65 * weather, uCloudVariation);
-    float profile = smoothstep(0.0, 0.12, h) * (1.0 - smoothstep(top * 0.55, top, h));
+    float profile = smoothstep(0.0, 0.05, h) * (1.0 - smoothstep(top * 0.55, top, h));
     float overcast = uCloudStorm * profile * 0.75;   // storm: an unbroken sheet
 
     vec3 q = (p + uCloudOffset) * uCloudShapeScale;
@@ -162,6 +162,9 @@ float cloudDensity(vec3 p, float lod, bool detail)
         float erosion = mix(detailFbm, 1.0 - detailFbm, clamp(h * 4.0, 0.0, 1.0)) * uCloudDetailStrength;
         density = remapRange(density, erosion, 1.0, 0.0, 1.0);
     }
+    // Crisp, well-defined billows instead of soft blobs: edges go opaque quickly (not for the storm sheet).
+    density = clamp(density, 0.0, 1.0);
+    density = mix(1.0 - (1.0 - density) * (1.0 - density), density, uCloudStorm);
     return clamp(max(density, overcast), 0.0, 1.0) * uCloudDensity;
 }
 
@@ -173,7 +176,7 @@ float cloudLightDepth(vec3 p)
     for (int i = 0; i < uCloudLightSteps; ++i)
     {
         p += uSunDir * len;
-        od += cloudDensity(p, 2.5, false) * len;
+        od += cloudDensity(p, 1.5, false) * len;
         len *= 1.8;
     }
     return od * CLOUD_SIGMA;
@@ -208,10 +211,12 @@ vec3 applyClouds(vec3 skyColor, vec3 dir)
         {
             float lightOd = cloudLightDepth(p);
             // Beer's law plus a cheap multiple-scattering term so deep cloud is not pitch black
-            float energy = max(exp(-lightOd), exp(-lightOd * 0.25) * 0.7);
+            float energy = max(exp(-lightOd), exp(-lightOd * 0.25) * 0.5);
             float heightFrac = (p.y - uCloudMin) / (uCloudMax - uCloudMin);
 
-            vec3 light = uCloudSunColor * energy * phase + uCloudAmbient * mix(0.55, 1.0, heightFrac);
+            // Shaded sides: sky light from above, grey ground bounce from below, so bases are grey rather than blue.
+            vec3 ambient = mix(vec3(dot(uCloudAmbient, vec3(0.333))), uCloudAmbient, 0.45);
+            vec3 light = uCloudSunColor * energy * phase + ambient * mix(0.3, 1.0, smoothstep(0.0, 0.7, heightFrac));
             float stepTransmittance = exp(-d * CLOUD_SIGMA * ds);
             scattered += transmittance * light * (1.0 - stepTransmittance);
             transmittance *= stepTransmittance;

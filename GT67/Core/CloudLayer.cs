@@ -40,7 +40,7 @@ public sealed class CloudLayer : IDisposable
     // ---- shape -----------------------------------------------------------------------------------
 
     /// <summary>How much of the sky is covered, 0 (clear) to 1 (overcast).</summary>
-    public float Coverage { get; set; } = 0.5f;
+    public float Coverage { get; set; } = 0.42f;
 
     /// <summary>Thickness multiplier of the cloud material (higher = darker, more opaque clouds).</summary>
     public float Density { get; set; } = 1f;
@@ -52,7 +52,7 @@ public sealed class CloudLayer : IDisposable
     public float Thickness { get; set; } = 2500f;
 
     /// <summary>Size in metres of one tile of the base noise (smaller = more, smaller clouds).</summary>
-    public float ShapeSize { get; set; } = 9000f;
+    public float ShapeSize { get; set; } = 7000f;
 
     /// <summary>How many times finer the erosion detail is than the base shape.</summary>
     public float DetailTiling { get; set; } = 6f;
@@ -94,7 +94,7 @@ public sealed class CloudLayer : IDisposable
     public float AmbientIntensity { get; set; } = 1.5f;
 
     /// <summary>Forward scattering of the cloud droplets: higher gives a brighter silver lining towards the sun.</summary>
-    public float Anisotropy { get; set; } = 0.6f;
+    public float Anisotropy { get; set; } = 0.7f;
 
     /// <summary>Colour multiplier for the clouds (sRGB).</summary>
     public Color4 Tint { get; set; } = Color4.White;
@@ -108,7 +108,7 @@ public sealed class CloudLayer : IDisposable
     public int Steps { get; set; } = 32;
 
     /// <summary>Samples along each ray towards the sun (cloud self-shadowing).</summary>
-    public int LightSteps { get; set; } = 5;
+    public int LightSteps { get; set; } = 6;
 
     /// <summary>Clouds further away than this are not rendered.</summary>
     public float MaxDistance { get; set; } = 50000f;

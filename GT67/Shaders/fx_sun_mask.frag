@@ -49,7 +49,7 @@ float cloudDensity(vec3 p)
     // Random weather: how much cloud here, and how tall it grows (towers where it is thick, flat where thin).
     float weather = cloudWeather(p.xz + uCloudOffset.xz);
     float top = mix(1.0, 0.35 + 0.65 * weather, uCloudVariation);
-    float profile = smoothstep(0.0, 0.12, h) * (1.0 - smoothstep(top * 0.55, top, h));
+    float profile = smoothstep(0.0, 0.05, h) * (1.0 - smoothstep(top * 0.55, top, h));
     float overcast = uCloudStorm * profile * 0.75;   // storm: an unbroken sheet
     vec3 q = (p + uCloudOffset) * uCloudShapeScale;
     vec4 n = textureLod(uCloudShape, q + cloudEvolve(), 2.5);
