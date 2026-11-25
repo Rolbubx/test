@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }}, ${{ matrix.configuration }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        configuration: [Editor, Game]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore SolciteEngine/SolciteEngine.csproj
+
+      - name: Build
+        run: dotnet build SolciteEngine/SolciteEngine.csproj -c ${{ matrix.configuration }} --no-restore -warnaserror:CS8602,CS8604
+
+  generated-game:
+    name: Generated game builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build Generated/GeneratedGame
+        run: dotnet build SolciteEngine/Generated/GeneratedGame/GeneratedGame.csproj

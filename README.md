@@ -712,3 +712,13 @@ the effect on frames where it has nothing to do.
 - MSAA (4x) renders into an offscreen HDR target and is resolved before tone mapping; it falls back to no AA if
   the driver cannot create it.
 - The skybox is drawn after opaque and before transparent objects so blended surfaces show the sky behind them.
+
+## CI/CD
+
+GitHub Actions (`.github/workflows/`):
+
+- **CI** (`ci.yml`): on every push to `main`/`master` and on pull requests it builds the `Editor` and `Game`
+  configurations on Ubuntu and Windows, and the generated game project.
+- **Release** (`release.yml`): pushing a tag like `v1.0.0` publishes the editor and the game (trimmed ReadyToRun, no .NET
+  needed) for `win-x64` and `linux-x64`, and attaches the zips to a GitHub release. It can also be started by hand
+  (Actions tab) to get the zips as workflow artifacts without a release.
