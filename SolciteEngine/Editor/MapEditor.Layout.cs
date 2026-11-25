@@ -118,7 +118,7 @@ public sealed partial class MapEditor
         else
         {
             if (g.IconTextButton(IconKind.Compile, "Compile", 120f)) Compile();
-            g.Tooltip("Compile the scripts, then write the game (every scene) into Generated/GeneratedGame/,\nwith the models, textures and sounds it needs. Run it with: dotnet run -c Game");
+            g.Tooltip("Compile the scripts, then write the game (every scene) into Generated/GeneratedGame/,\nwith the models, textures and sounds it needs. Ship it with: dotnet publish Generated/GeneratedGame -c Release -r <platform> (only the game and its runtime, no editor)");
         }
 
         g.SameLine();

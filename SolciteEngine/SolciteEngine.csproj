@@ -17,6 +17,15 @@
         <Configurations>Debug;Release;Editor;Game</Configurations>
     </PropertyGroup>
 
+    <!-- A generated game builds this project as its runtime library (EmbedGeneratedGame=false, Game configuration): no editor,
+         no Roslyn, no game of the engine's own and none of the engine's sample assets. It gets its own output folders so it
+         never overwrites the sandbox's build. -->
+    <PropertyGroup Condition="'$(EmbedGeneratedGame)' == 'false'">
+        <IntermediateOutputPath>obj\runtime\$(Configuration)\</IntermediateOutputPath>
+        <OutputPath>bin\runtime\$(Configuration)\</OutputPath>
+        <OutputType>Library</OutputType>
+    </PropertyGroup>
+
     <PropertyGroup Condition="'$(Configuration)' == 'Editor'">
         <DefineConstants>$(DefineConstants);DEBUG;TRACE;EDITOR</DefineConstants>
         <Optimize>false</Optimize>
@@ -70,7 +79,7 @@
         <PackageReference Include="Silk.NET.Assimp" Version="2.22.0" />
         <PackageReference Include="StbImageSharp" Version="2.30.15" />
         <!-- Compiles the scripts in Scripts/*.cs while the editor runs (not used by the game itself) -->
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" Condition="'$(Configuration)' != 'Game'" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" Condition="'$(Configuration)' != 'Game'" />
         <!-- 2D vector graphics and real font rendering for the UI (the Linux native part is a separate package) -->
         <PackageReference Include="SkiaSharp" Version="3.119.4" />
         <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
@@ -103,9 +112,15 @@
 
     <!-- The editor ships no game: the generated game (Game.cs and its Assets/Game) stays out of it. The editor opens a
          project's saved game by compiling it in memory (ProjectLoader), so nothing of any game is built into the editor. -->
-    <ItemGroup Condition="'$(Configuration)' == 'Editor'">
+    <ItemGroup Condition="'$(Configuration)' == 'Editor' Or '$(EmbedGeneratedGame)' == 'false'">
         <Compile Remove="Generated\GeneratedGame\**" />
         <None Remove="Generated\GeneratedGame\**" />
+    </ItemGroup>
+
+    <!-- Runtime library only: the shaders, the UI fonts and the native libraries. A game brings its own skybox, prefabs and assets. -->
+    <ItemGroup Condition="'$(EmbedGeneratedGame)' == 'false'">
+        <None Remove="Assets\Textures\**;Assets\Skybox\**;Assets\Models\**;Prefabs\**;Shaders\Custom\**" />
+        <Compile Remove="Program.cs" />   <!-- the game has its own entry point -->
     </ItemGroup>
     <!-- (kept last: a Remove only affects the items declared above it) -->
 

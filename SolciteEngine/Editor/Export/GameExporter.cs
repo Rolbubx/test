@@ -255,17 +255,41 @@ public sealed class GameExporter
                 <DefineConstants>$(DefineConstants);STANDALONE_GAME</DefineConstants>
                 <!-- SolciteEngine.csproj compiles Game.cs too (the editor opens the compiled map), so this project's own copy shadows that one -->
                 <NoWarn>$(NoWarn);CS0436;1591</NoWarn>
+                <!-- Ship only what a game needs -->
+                <!-- Only the native libraries of one platform (this machine's, or the one given with -r): not Skia and OpenAL for every OS -->
+                <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
+                <SelfContained Condition="'$(SelfContained)' == ''">false</SelfContained>
+                <InvariantGlobalization>true</InvariantGlobalization>
+                <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+                <GenerateDocumentationFile>false</GenerateDocumentationFile>
+            </PropertyGroup>
+
+            <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+                <DebugType>none</DebugType>
+                <!-- "dotnet publish -c Release -r win-x64": one trimmed, precompiled exe with the native libraries beside it -->
+                <SelfContained>true</SelfContained>
+                <PublishTrimmed>true</PublishTrimmed>
+                <PublishReadyToRun>true</PublishReadyToRun>
+                <PublishSingleFile>true</PublishSingleFile>
+                <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
             </PropertyGroup>
 
             <ItemGroup>
-                <ProjectReference Include="{ENGINE}" />
+                <!-- Scripts, effects and settings are found by reflection: keep the engine and the game whole when trimming -->
+                <TrimmerRootAssembly Include="SolciteEngine" />
+                <TrimmerRootAssembly Include="GeneratedGame" />
+            </ItemGroup>
+
+            <ItemGroup>
+                <!-- Only the runtime of the engine: its Game configuration (no editor, no Roslyn), without the engine's own sample game and assets -->
+                <ProjectReference Include="{ENGINE}" SetConfiguration="Configuration=Game" AdditionalProperties="EmbedGeneratedGame=false" />
             </ItemGroup>
 
             <ItemGroup>
                 <!-- Models, textures, sounds, meshes, shaders and UI images of the game: the game loads them from Assets/Game -->
                 <None Include="Assets\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Assets\Game\%(RecursiveDir)%(Filename)%(Extension)" />
                 <!-- The engine's own files -->
-                <None Include="{ENGINEDIR}Shaders\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Shaders\%(RecursiveDir)%(Filename)%(Extension)" />
+                <None Include="{ENGINEDIR}Shaders\**\*.*" Exclude="{ENGINEDIR}Shaders\Custom\**" CopyToOutputDirectory="PreserveNewest" Link="Shaders\%(RecursiveDir)%(Filename)%(Extension)" />
                 <None Include="{ENGINEDIR}Assets\Fonts\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Assets\Fonts\%(RecursiveDir)%(Filename)%(Extension)" />
                 {CUSTOMSHADERS}
                 <None Include="..\..\Assets\Skybox\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Assets\Skybox\%(RecursiveDir)%(Filename)%(Extension)" />

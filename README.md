@@ -727,3 +727,10 @@ GitHub Actions (`.github/workflows/`):
 `Assets/Game`) out of the program: it opens a project's saved game by compiling it in memory. CI and the release workflow
 fail if the editor build or package contains a game (`Assets/Game` or `GameGenerator`). Games are shipped by the `Game`
 configuration or by `Generated/GeneratedGame`, never by the editor.
+
+**A shipped game contains only what it needs.** `Generated/GeneratedGame` builds against the engine's runtime library
+(its `Game` configuration without the editor, Roslyn, the engine's sample game and sample assets): the game's code, the
+engine runtime, the shaders, the UI fonts, the native libraries of one platform (OpenGL/GLFW, OpenAL, Skia, Assimp) and
+the game's own assets. `dotnet publish Generated/GeneratedGame -c Release -r win-x64` makes a trimmed, precompiled
+single exe with the native libraries beside it; without `-r` it builds for the current machine only. A game built this
+way is about 35 MB on Linux instead of 500 MB.

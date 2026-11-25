@@ -640,7 +640,7 @@ public sealed partial class MapEditor : IDisposable
                 $"{result.Sounds} sound(s), {result.UiElements} UI element(s); {result.CopiedFiles} asset file(s) shipped " +
                 "(models, textures, sounds, UI images).");
             foreach (var warning in result.Warnings) Say("Warning: " + warning, error: true);
-            Say("Rebuild and start with --generated (dotnet run -- --generated) to play the generated game.");
+            Say("Play it: dotnet run --project Generated/GeneratedGame. Ship it: dotnet publish Generated/GeneratedGame -c Release -r win-x64 (only the game and the runtime it needs, no editor).");
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
         {

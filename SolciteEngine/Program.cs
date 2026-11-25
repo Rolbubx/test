@@ -104,7 +104,7 @@ window.Initialize = w =>
         BuildDemoScene(w);
         if (playSound != null) w.Scene.Add(new Sound(playSound) { Name = "Test tone", Loop = true, PlayOnStart = true, Spatial = true, Position = new Vector3(2f, 1f, 0f), Volume = 0.3f });
         w.Scene.Volume.CaptureFrom(w.Renderer.Post);
-        var result = new SolciteEngine.Editor.Export.GameExporter(new[] { w.Scene }, SolciteEngine.Editor.ProjectPaths.Locate()!, w.GameUi).Generate();
+        var result = new SolciteEngine.Editor.Export.GameExporter(new[] { w.Scene }, w.Project ?? SolciteEngine.Editor.ProjectPaths.Locate()!, w.GameUi).Generate();
         Log.Info($"Exported: {string.Join(", ", result.Files)}; {result.Objects} objects, {result.CopiedFiles} asset files.");
         foreach (var warning in result.Warnings) Log.Warn(warning);
         w.Close();
