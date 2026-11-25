@@ -57,10 +57,23 @@ jobs:
             (cd game && zip -qr ../../dist/SolciteEngine-Game-${{ matrix.rid }}.zip .)
           fi
 
+      # The stand-alone installer: downloads the editor from this release.
+      - name: Publish the downloader
+        run: dotnet publish SolciteEngineDownloader/SolciteEngineDownloader.csproj -c Release -r ${{ matrix.rid }} -o out/downloader
+
+      - name: Package the downloader
+        shell: bash
+        run: |
+          if [ "${{ matrix.rid }}" = "win-x64" ]; then
+            cp out/downloader/SolciteEngineDownloader.exe dist/SolciteEngineDownloader.exe
+          else
+            cp out/downloader/SolciteEngineDownloader dist/SolciteEngineDownloader-${{ matrix.rid }}
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: SolciteEngine-${{ matrix.rid }}
-          path: dist/*.zip
+          path: dist/*
 
   release:
     name: GitHub release
@@ -75,5 +88,5 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.zip
+          files: dist/*
           generate_release_notes: true

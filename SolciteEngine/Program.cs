@@ -41,7 +41,7 @@ generated = true;   // the shipped game is the one the editor compiled (the demo
 _ = exportDemo;     // "--export-demo" needs the editor, which the Game build leaves out
 #endif
 string? screenshot = null, startScene = null, projectFolder = null;
-bool sandbox = false, forceLauncher = false, forceSetup = false;
+bool sandbox = false, forceLauncher = false, forceSetup = false, update = false, checkUpdate = false;
 float[]? cameraView = null;
 var argv = Environment.GetCommandLineArgs();
 for (int i = 1; i < argv.Length; i++)
@@ -66,8 +66,18 @@ for (int i = 1; i < argv.Length; i++)
     if (argv[i] == "--project" && i + 1 < argv.Length) projectFolder = argv[i + 1];   // the editor: open this project folder
     if (argv[i] == "--launcher") forceLauncher = true;   // show the project launcher even with --frames (screenshot tests)
     if (argv[i] == "--setup") forceSetup = true;   // the editor: run the first-launch setup again (checks, shader cache)
+    if (argv[i] == "--update") update = true;   // check GitHub for a newer release, install it and restart
+    if (argv[i] == "--check-update") checkUpdate = true;   // only report whether a newer release exists
     if (argv[i] == "--sandbox") sandbox = true;   // the editor: open the engine's own folder, without the project launcher
 }
+if (checkUpdate)
+{
+    var found = Updater.CheckAsync().GetAwaiter().GetResult();
+    Log.Info(found == null ? $"SolciteEngine {Updater.CurrentVersion} is up to date." : $"New version available: {found.Tag} (running {Updater.CurrentVersion}).");
+    return 0;
+}
+if (update && Updater.CheckAndInstall()) return 0;   // the updater script swaps the files and relaunches once we exit
+
 // The editor opens the map saved by the last Compile (the demo scene only when nothing was compiled yet, or with --demo).
 if (IsEditor && !demo) generated = true;
 #if !GAME
