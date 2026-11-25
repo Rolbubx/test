@@ -1,0 +1,103 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RootNamespace>SolciteEngine</RootNamespace>
+        <!-- Lets the app start on a newer installed runtime when .NET 8 is not present -->
+        <RollForward>Major</RollForward>
+        <!-- SolciteEngine.xml (the descriptions of the scripting API) is written next to the exe; the editor's API reference reads it -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);1591;1573;1587;1570;1572;1574;1584;1658</NoWarn>
+        <!-- Editor = opens the map editor (debug build); Game = runs the game (optimised). Debug/Release keep the
+             IsEditor default from Program.cs. The editor / game command-line options still override all of them. -->
+        <Configurations>Debug;Release;Editor;Game</Configurations>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Editor'">
+        <DefineConstants>$(DefineConstants);DEBUG;TRACE;EDITOR</DefineConstants>
+        <Optimize>false</Optimize>
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>portable</DebugType>
+    </PropertyGroup>
+
+    <!-- Game: the shipped game, without the editor. "dotnet publish -c Game -r win-x64" makes a Native AOT build:
+         one native exe (no .NET install needed, fast start) plus the native libraries, Shaders, Prefabs and Assets.
+         Native AOT needs the Visual Studio "Desktop development with C++" tools; without them add -p:GameAot=false
+         for a trimmed, precompiled (ReadyToRun) single-file exe that also runs without .NET installed. -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Game'">
+        <DefineConstants>$(DefineConstants);TRACE;GAME</DefineConstants>
+        <Optimize>true</Optimize>
+        <DebugType>none</DebugType>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <GameAot Condition="'$(GameAot)' == ''">true</GameAot>
+        <PublishAot>$(GameAot)</PublishAot>
+        <OptimizationPreference>Speed</OptimizationPreference>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+        <GameExcludedAssets>Assets\Models\**</GameExcludedAssets>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Game' And '$(GameAot)' != 'true'">
+        <SelfContained>true</SelfContained>
+        <PublishTrimmed>true</PublishTrimmed>
+        <PublishReadyToRun>true</PublishReadyToRun>
+        <PublishSingleFile>true</PublishSingleFile>
+        <!-- The native libraries stay beside the exe: Silk.NET looks for Assimp there, not in the single file -->
+        <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
+    </PropertyGroup>
+
+    <!-- Native libraries come with debug symbols (libSkiaSharp.pdb alone is 80 MB); the game does not need them -->
+    <Target Name="RemoveGamePdbs" AfterTargets="Publish" Condition="'$(Configuration)' == 'Game'">
+        <ItemGroup>
+            <GamePdb Include="$(PublishDir)**\*.pdb" />
+        </ItemGroup>
+        <Delete Files="@(GamePdb)" />
+    </Target>
+
+    <ItemGroup Condition="'$(Configuration)' == 'Game'">
+        <!-- Scripts, effects and settings are found by reflection (ParameterAccess, prefabs): keep all of SolciteEngine's own code -->
+        <TrimmerRootAssembly Include="SolciteEngine" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="NLayer" Version="3.0.0" />
+        <PackageReference Include="NVorbis" Version="0.10.5" />
+        <PackageReference Include="OpenTK" Version="4.9.4" />
+        <PackageReference Include="Silk.NET.Assimp" Version="2.22.0" />
+        <PackageReference Include="StbImageSharp" Version="2.30.15" />
+        <!-- Compiles the scripts in Scripts/*.cs while the editor runs (not used by the game itself) -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" Condition="'$(Configuration)' != 'Game'" />
+        <!-- 2D vector graphics and real font rendering for the UI (the Linux native part is a separate package) -->
+        <PackageReference Include="SkiaSharp" Version="3.119.4" />
+        <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
+    </ItemGroup>
+
+    <!-- Compile swaps Generated/GeneratedGame in through these two folders; a leftover copy must not be built twice.
+         Generated/GeneratedGame is also a project of its own (GeneratedGame.csproj); its build folders are not ours.
+         Game.cs itself is compiled here (the editor opens the compiled map), without its standalone Main. -->
+    <ItemGroup>
+        <Compile Remove="Generated\GeneratedGame.new\**;Generated\GeneratedGame.old\**;Generated\GeneratedGame\obj\**;Generated\GeneratedGame\bin\**" />
+        <None Remove="Generated\GeneratedGame.new\**;Generated\GeneratedGame.old\**;Generated\GeneratedGame\obj\**;Generated\GeneratedGame\bin\**" />
+    </ItemGroup>
+
+    <!-- The game leaves the editor and the live script compiler out (the scripts in Scripts/ are compiled into it) -->
+    <ItemGroup Condition="'$(Configuration)' == 'Game'">
+        <Compile Remove="Editor\**" />
+        <Compile Remove="Scripting\ScriptCompiler*.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="Shaders\**\*.*" CopyToOutputDirectory="PreserveNewest" LinkBase="Shaders" />
+        <!-- The game loads its models from Assets/Game; Assets/Models is the editor's import folder, so it stays out of the game -->
+        <None Include="Assets\**\*.*" Exclude="$(GameExcludedAssets)" CopyToOutputDirectory="PreserveNewest" LinkBase="Assets" />
+        <!-- Prefabs saved in the editor (Prefabs/*.prefab); the game spawns them with Prefab.Spawn / Game.SpawnPrefab -->
+        <None Include="Prefabs\**\*.*" CopyToOutputDirectory="PreserveNewest" LinkBase="Prefabs" />
+        <!-- Models, textures, sounds and UI images the editor shipped with the generated game (Generated/GeneratedGame/Assets) -->
+        <None Include="Generated\GeneratedGame\Assets\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Assets\Game\%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+</Project>

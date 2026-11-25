@@ -1,4 +1,4 @@
-# GT67 — small OpenGL engine boilerplate (C# / .NET 8)
+# SolciteEngine — small OpenGL engine boilerplate (C# / .NET 8)
 
 OpenTK 4 (OpenGL 4.1 core, macOS-compatible), Silk.NET.Assimp for models, StbImageSharp for textures,
 SkiaSharp (draws the UI with the bundled JetBrains Mono font; Inter is bundled too, see `UiFonts.Family`), and Roslyn (`Microsoft.CodeAnalysis.CSharp`) for the editor's live
@@ -7,20 +7,20 @@ script compiling. No other dependencies.
 ## Run
 
 ```bash
-dotnet run --project GT67
-dotnet run --project GT67 -- --frames 300     # closes itself after 300 frames (smoke test)
-dotnet run --project GT67 -- --game           # game mode instead of the editor (see IsEditor in Program.cs)
-dotnet run --project GT67 -c Editor           # build configuration "Editor": opens the editor (debug build)
-dotnet run --project GT67 -c Game             # build configuration "Game": runs the compiled game (optimised, no editor)
-GT67/publish-game.ps1                         # the shippable game in GT67/Build: Native AOT exe (needs the VS C++ build tools)
-GT67/publish-game.ps1 -NoAot                  # same without the C++ tools: trimmed ReadyToRun single-file exe
-dotnet run --project GT67 -- --debug          # turns on the temporary DebugFlag.On (game mode)
+dotnet run --project SolciteEngine
+dotnet run --project SolciteEngine -- --frames 300     # closes itself after 300 frames (smoke test)
+dotnet run --project SolciteEngine -- --game           # game mode instead of the editor (see IsEditor in Program.cs)
+dotnet run --project SolciteEngine -c Editor           # build configuration "Editor": opens the editor (debug build)
+dotnet run --project SolciteEngine -c Game             # build configuration "Game": runs the compiled game (optimised, no editor)
+SolciteEngine/publish-game.ps1                         # the shippable game in SolciteEngine/Build: Native AOT exe (needs the VS C++ build tools)
+SolciteEngine/publish-game.ps1 -NoAot                  # same without the C++ tools: trimmed ReadyToRun single-file exe
+dotnet run --project SolciteEngine -- --debug          # turns on the temporary DebugFlag.On (game mode)
 ```
 
-In Rider, the run menu has **GT67 Editor** and **GT67 Game** (shared run configurations in `.run/`): they run the
+In Rider, the run menu has **SolciteEngine Editor** and **SolciteEngine Game** (shared run configurations in `.run/`): they run the
 same build with `--editor` or `--game`, so switching between them needs no recompile. The build configurations are
 also in the solution, so Rider / Visual Studio list **Editor** and **Game** next to Debug and Release. They define `EDITOR` / `GAME` for `#if` blocks; `--editor` / `--game` still override them. `DebugFlag.On`
-(`GT67.Utils`) is a temporary switch for testing: the editor toggles it in its settings menu (gear, "debug_flag", saved
+(`SolciteEngine.Utils`) is a temporary switch for testing: the editor toggles it in its settings menu (gear, "debug_flag", saved
 in `editor.settings.json`).
 
 Requires the .NET 8 SDK. (If only a newer runtime is installed, `RollForward=Major` lets the app start on it.)
@@ -38,7 +38,7 @@ Requires the .NET 8 SDK. (If only a newer runtime is installed, `RollForward=Maj
 ## Project structure
 
 ```
-GT67/
+SolciteEngine/
   Program.cs            IsEditor flag (or the Editor/Game build configuration), post-processing set-up, demo scene
   Core/
     Window.cs           GameWindow: loop, input, resize, picking
@@ -247,7 +247,7 @@ included (`Spin`, `PlayerController`, `GameCamera`). In the editor scripts are c
 same files normally. Scripts only run while the editor is playing (always in the game). A script that throws is
 disabled and the error is logged.
 
-## Custom shaders (the GT67 shader language)
+## Custom shaders (the SolciteEngine shader language)
 
 A `.shader` file in `Shaders/Custom` describes how a surface looks, and optionally how its vertices move; the engine
 builds a full lit shader from it, so lighting, shadows, fog, rain, puddles and caustics keep working. Pick it in the
