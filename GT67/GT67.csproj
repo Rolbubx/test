@@ -7,6 +7,8 @@
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <RootNamespace>GT67</RootNamespace>
+        <!-- Compared with the tag of the latest GitHub release by the updater (Utils/Updater.cs) -->
+        <Version>0.1.0</Version>
         <!-- Lets the app start on a newer installed runtime when .NET 8 is not present -->
         <RollForward>Major</RollForward>
         <!-- GT67.xml (the descriptions of the scripting API) is written next to the exe; the editor's API reference reads it -->

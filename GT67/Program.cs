@@ -38,6 +38,7 @@ bool noSky = false, noShadow = false, noReflect = false, generated = false, expo
 generated = true;   // the shipped game is the one the editor compiled (the demo scene is only a fallback)
 _ = exportDemo;     // "--export-demo" needs the editor, which the Game build leaves out
 #endif
+bool update = false, checkUpdate = false;
 string? screenshot = null, startScene = null;
 float[]? cameraView = null;
 var argv = Environment.GetCommandLineArgs();
@@ -57,10 +58,20 @@ for (int i = 1; i < argv.Length; i++)
     if (argv[i] == "--editor") IsEditor = true;
     if (argv[i] == "--game") IsEditor = false;
     if (argv[i] == "--debug") DebugFlag.On = true;
+    if (argv[i] == "--update") update = true;   // check GitHub for a newer release, install it and restart
+    if (argv[i] == "--check-update") checkUpdate = true;   // only report whether a newer release exists
     if (argv[i] == "--screenshot" && i + 1 < argv.Length) screenshot = argv[i + 1];   // with --frames: save the last frame
     if (argv[i] == "--camera" && i + 1 < argv.Length) cameraView = ParseFloats(argv[i + 1]);   // "x,y,z,targetX,targetY,targetZ"
     if (argv[i] == "--scene" && i + 1 < argv.Length) startScene = argv[i + 1];   // with --generated: start in this scene
 }
+if (checkUpdate)
+{
+    var found = Updater.CheckAsync().GetAwaiter().GetResult();
+    Log.Info(found == null ? $"GT67 {Updater.CurrentVersion} is up to date." : $"New version available: {found.Tag} (running {Updater.CurrentVersion}).");
+    return 0;
+}
+if (update && Updater.CheckAndInstall()) return 0;   // the updater script swaps the files and relaunches once we exit
+
 // The editor opens the map saved by the last Compile (the demo scene only when nothing was compiled yet, or with --demo).
 if (IsEditor && !demo) generated = true;
 
