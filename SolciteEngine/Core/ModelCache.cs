@@ -52,9 +52,27 @@ public static class ModelCache
         return texture;
     }
 
-    /// <summary>Relative paths are resolved against the executable folder, where assets are copied.</summary>
-    public static string ResolvePath(string path) =>
-        Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, path));
+    /// <summary>
+    /// The folder of the project the editor has open (null in the game). Relative paths are looked for there first, so a
+    /// project's own Assets/ and its compiled game's Assets/Game/ are found without being copied next to the executable.
+    /// </summary>
+    public static string? ProjectRoot { get; set; }
+
+    /// <summary>Relative paths are resolved against the open project, then against the executable folder, where assets are copied.</summary>
+    public static string ResolvePath(string path)
+    {
+        if (Path.IsPathRooted(path)) return path;
+        if (ProjectRoot != null)
+        {
+            const string game = "Assets/Game/";
+            string normalized = path.Replace('\\', '/');
+            string inProject = normalized.StartsWith(game, StringComparison.OrdinalIgnoreCase)
+                ? Path.Combine(ProjectRoot, "Generated", "GeneratedGame", "Assets", normalized[game.Length..])
+                : Path.Combine(ProjectRoot, normalized);
+            if (File.Exists(inProject) || Directory.Exists(inProject)) return Path.GetFullPath(inProject);
+        }
+        return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, path));
+    }
 
     public static void Clear()
     {

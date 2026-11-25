@@ -64,6 +64,16 @@ public sealed class Window : GameWindow
     /// <summary>The map editor, when <see cref="IsEditor"/> is on.</summary>
     public MapEditor? Editor { get; private set; }
 
+#if !GAME
+    /// <summary>Show the project launcher first (editor only); off, the editor opens <see cref="Project"/> (or the engine sandbox) straight away.</summary>
+    public bool ShowLauncher { get; set; }
+
+    /// <summary>The project the editor has open (null until one is chosen).</summary>
+    public ProjectPaths? Project { get; set; }
+
+    private ProjectLauncher? _launcher;
+#endif
+
     /// <summary>Called once the GL context is ready; build the scene here.</summary>
     public Action<Window>? Initialize { get; set; }
 
@@ -129,9 +139,34 @@ public sealed class Window : GameWindow
         GameUi.QuitRequested += Close;
         Viewport = new UiRect(0f, 0f, ClientSize.X, ClientSize.Y);
 
+#if !GAME
+        if (IsEditor && ShowLauncher)
+        {
+            _launcher = new ProjectLauncher(this);   // the editor starts once a project is chosen (StartSession)
+            return;
+        }
+#endif
+        StartSession();
+    }
+
+    /// <summary>Builds the first scene and, in the editor, opens the project.</summary>
+    private void StartSession()
+    {
+#if !GAME
+        if (IsEditor)
+        {
+            Project ??= ProjectPaths.Locate();
+            if (Project != null)
+            {
+                ModelCache.ProjectRoot = Project.IsEngineSandbox ? null : Project.Root;
+                RecentProjects.Add(Project);
+                Title = $"SolciteEngine Editor - {Project.Name}";
+            }
+        }
+#endif
         Initialize?.Invoke(this);
 #if !GAME
-        if (IsEditor) Editor = new MapEditor(this);
+        if (IsEditor) Editor = new MapEditor(this, Project);
 #endif
     }
 
@@ -213,6 +248,23 @@ public sealed class Window : GameWindow
 
         Ui.Begin(dt);
         Viewport = new UiRect(0f, 0f, ClientSize.X, ClientSize.Y);
+#if !GAME
+        if (_launcher != null)
+        {
+            _launcher.Draw(dt);
+            Ui.End();
+            if (ScreenshotPath != null && _maxFrames > 0 && _frameCount + 1 >= _maxFrames) SaveScreenshot(ScreenshotPath);
+            SwapBuffers();
+            if (_maxFrames > 0 && ++_frameCount >= _maxFrames) Close();
+            if (_launcher.Chosen != null)
+            {
+                Project = _launcher.Chosen;
+                _launcher = null;
+                StartSession();
+            }
+            return;
+        }
+#endif
         if (Editor != null) Editor.Draw(dt);
         else DebugUI.Draw(dt);
         GameUi.Draw(Ui.Gui, Viewport, interactive: Editor == null || Editor.Playing);
@@ -384,6 +436,9 @@ public sealed class Window : GameWindow
     {
         base.OnFileDrop(e);
         Editor?.OnFileDrop(e.FileNames);
+#if !GAME
+        _launcher?.OnFileDrop(e.FileNames);
+#endif
     }
 
     protected override void OnMouseDown(MouseButtonEventArgs e)

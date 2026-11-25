@@ -74,10 +74,10 @@ public sealed partial class MapEditor : IDisposable
     // The editor's own view, put back when Play stops (the game camera moves the camera while playing).
     private (Vector3 position, float yaw, float pitch, float fov) _editorView;
 
-    public MapEditor(Window window)
+    public MapEditor(Window window, ProjectPaths? project)
     {
         _window = window;
-        Paths = ProjectPaths.Locate();
+        Paths = project;
         // Shaders written in the editor live in the project (Shaders/Custom) and are found before the copies in the build output
         if (Paths != null) window.Renderer.Custom.AddDirectory(Path.Combine(Paths.Root, "Shaders", "Custom"), first: true);
         Settings = EditorSettings.Load(Paths);
@@ -94,7 +94,7 @@ public sealed partial class MapEditor : IDisposable
         ApplySnapSettings();
 
         if (Paths == null)
-            Say("Project folder (SolciteEngine.csproj) not found: scripts and the map cannot be saved.", error: true);
+            Say("No project is open: scripts and the map cannot be saved.", error: true);
         else
             CompileScripts(announceSuccess: false);
 

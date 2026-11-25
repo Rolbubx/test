@@ -23,6 +23,30 @@ also in the solution, so Rider / Visual Studio list **Editor** and **Game** next
 (`SolciteEngine.Utils`) is a temporary switch for testing: the editor toggles it in its settings menu (gear, "debug_flag", saved
 in `editor.settings.json`).
 
+### Projects
+
+The editor starts on a **project launcher**: pick a recent project, open a project folder (type its path or drop the
+folder onto the window) or create a new one. A project is a folder:
+
+```
+MyGame/
+  project.solcite.json     marks the folder as a project (name, creation date)
+  Scripts/                 your scripts (_Usings.cs holds the shared usings), compiled live by the editor
+  Assets/ Prefabs/         imported models, textures, sounds, skybox; saved prefabs
+  Shaders/Custom/          your custom shaders
+  Generated/GeneratedGame/ what Compile writes: the whole game (scenes, UI) as a csproj plus Game.cs
+  editor.settings.json     the editor's preferences for this project
+```
+
+Compile saves the map into the project; reopening the project compiles `Generated/GeneratedGame` again in memory and
+shows the map as you left it. The folder button in the toolbar goes back to the launcher. The recent projects are kept in
+`%AppData%/SolciteEngine/recent-projects.json` (`~/.config` on Linux). The generated game builds against the engine
+sources (`SolciteEngine.csproj`, found next to the running editor): `dotnet run --project MyGame/Generated/GeneratedGame`.
+"SolciteEngine sandbox" in the launcher opens the engine's own folder as a project, as the editor did before.
+
+Command line: `--project <folder>` opens a project without the launcher, `--sandbox` opens the sandbox, `--launcher` shows
+the launcher even with `--frames` (the other smoke-test options skip it).
+
 Requires the .NET 8 SDK. (If only a newer runtime is installed, `RollForward=Major` lets the app start on it.)
 
 | Key / mouse | Action |

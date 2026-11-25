@@ -1,3 +1,4 @@
+using SolciteEngine.Core;
 using SolciteEngine.Gui;
 using OpenTK.Mathematics;
 using SkiaSharp;
@@ -320,7 +321,7 @@ public sealed class UiCanvas : IDisposable
         if (_images.TryGetValue(path, out var cached)) return cached;
 
         SKImage? image = null;
-        string full = Path.IsPathRooted(path) ? path : Path.Combine(AppContext.BaseDirectory, path);
+        string full = ModelCache.ResolvePath(path);
         try
         {
             if (File.Exists(full)) image = SKImage.FromEncodedData(full);

@@ -40,6 +40,9 @@ public sealed class SceneManager
         else _scenes.Add((name, build));
     }
 
+    /// <summary>Forgets every registered scene (a saved game that failed half-way through loading).</summary>
+    internal void Clear() => _scenes.Clear();
+
     public bool Exists(string name) => _scenes.Any(s => Same(s.name, name));
 
     /// <summary>Loads a scene at the end of the frame (scripts can call it from OnUpdate). Unknown names are logged and ignored.</summary>

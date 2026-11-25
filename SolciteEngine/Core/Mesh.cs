@@ -33,7 +33,8 @@ public sealed class Mesh : IDisposable
         Upload();
     }
 
-    private const string DataMagic = "SolciteEngineMESH";
+    // Kept from before the project was renamed: existing data files start with these bytes.
+    private const string DataMagic = "GT67MESH";
     private const int DataVersion = 1;
 
     /// <summary>

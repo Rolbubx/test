@@ -147,6 +147,11 @@ public sealed partial class MapEditor
         g.Tooltip("Snap moves, rotations and scales to the steps set in Settings.");
 
         g.SameLine();
+        if (g.IconButton(IconKind.Folder, "projects")) g.TogglePopup("##projects", g.LastItemRect);
+        g.Tooltip(Paths != null ? $"Project: {Paths.Name}" : "Projects");
+        DrawProjectPopup();
+
+        g.SameLine();
         if (g.IconButton(IconKind.Gear, "settings")) g.TogglePopup("##settings", g.LastItemRect);
         g.Tooltip("Editor settings");
         DrawSettingsPopup();
@@ -154,6 +159,42 @@ public sealed partial class MapEditor
         g.SameLine();
         var statusRect = g.Reserve(0f, g.Theme.ButtonHeight);
         g.LabelRect(statusRect.Deflate(8f, 0f), $"{Scene.Name}  ·  {SelectionName()}", g.Theme.TextDim, g.Theme.FontSize, FontWeight.Regular, TextAlign.Left);
+    }
+
+    private void DrawProjectPopup()
+    {
+        var g = G;
+        if (!g.BeginPopup("##projects", 360f)) return;
+
+        g.Heading(Paths?.Name ?? "No project");
+        if (Paths != null) g.TextWrapped(Paths.Root, dim: true);
+        g.Spacing(4f);
+        g.TextWrapped("Opens the project launcher again, to open another project or create a new one. Press Compile first: " +
+                      "the map is saved only by Compile.", dim: true);
+        g.Spacing(4f);
+        if (g.Button("Switch project...", 0f, ButtonStyle.Primary)) SwitchProject();
+        g.EndPopup();
+    }
+
+    /// <summary>Starts the editor again on its project launcher and closes this one.</summary>
+    private void SwitchProject()
+    {
+        try
+        {
+            string? exe = Environment.ProcessPath;
+            if (exe == null) { Say("Could not restart the editor.", error: true); return; }
+
+            var start = new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false };
+            if (string.Equals(Path.GetFileNameWithoutExtension(exe), "dotnet", StringComparison.OrdinalIgnoreCase))
+                start.ArgumentList.Add(Environment.GetCommandLineArgs()[0]);   // started as "dotnet SolciteEngine.dll"
+            start.ArgumentList.Add("--editor");
+            System.Diagnostics.Process.Start(start);
+            _window.Close();
+        }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Say($"Could not restart the editor: {e.Message}", error: true);
+        }
     }
 
     private string SelectionName() =>

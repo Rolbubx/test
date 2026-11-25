@@ -38,7 +38,8 @@ bool noSky = false, noShadow = false, noReflect = false, generated = false, expo
 generated = true;   // the shipped game is the one the editor compiled (the demo scene is only a fallback)
 _ = exportDemo;     // "--export-demo" needs the editor, which the Game build leaves out
 #endif
-string? screenshot = null, startScene = null;
+string? screenshot = null, startScene = null, projectFolder = null;
+bool sandbox = false, forceLauncher = false;
 float[]? cameraView = null;
 var argv = Environment.GetCommandLineArgs();
 for (int i = 1; i < argv.Length; i++)
@@ -60,12 +61,29 @@ for (int i = 1; i < argv.Length; i++)
     if (argv[i] == "--screenshot" && i + 1 < argv.Length) screenshot = argv[i + 1];   // with --frames: save the last frame
     if (argv[i] == "--camera" && i + 1 < argv.Length) cameraView = ParseFloats(argv[i + 1]);   // "x,y,z,targetX,targetY,targetZ"
     if (argv[i] == "--scene" && i + 1 < argv.Length) startScene = argv[i + 1];   // with --generated: start in this scene
+    if (argv[i] == "--project" && i + 1 < argv.Length) projectFolder = argv[i + 1];   // the editor: open this project folder
+    if (argv[i] == "--launcher") forceLauncher = true;   // show the project launcher even with --frames (screenshot tests)
+    if (argv[i] == "--sandbox") sandbox = true;   // the editor: open the engine's own folder, without the project launcher
 }
 // The editor opens the map saved by the last Compile (the demo scene only when nothing was compiled yet, or with --demo).
 if (IsEditor && !demo) generated = true;
+#if !GAME
+// The editor asks which project to open (or create) first, unless a project or smoke-test option says otherwise.
+bool showLauncher = IsEditor && projectFolder == null && !sandbox && !demo && (maxFrames == 0 || forceLauncher) && !exportDemo;
+SolciteEngine.Editor.ProjectPaths? chosenProject = null;
+if (IsEditor && projectFolder != null)
+{
+    chosenProject = SolciteEngine.Editor.ProjectPaths.Open(projectFolder, out string projectError);
+    if (chosenProject == null) { Log.Warn($"Cannot open the project: {projectError}"); showLauncher = true; }
+}
+#endif
 
 
 using var window = new Window(IsEditor ? "SolciteEngine Editor" : "SolciteEngine", 1280, 720, maxFrames) { IsEditor = IsEditor, UncappedFps = noVsync, ScreenshotPath = screenshot };
+#if !GAME
+window.ShowLauncher = showLauncher;
+window.Project = chosenProject;
+#endif
 window.Initialize = w =>
 {
     GamePostProcessing.Setup(w, IsEditor);
@@ -88,6 +106,15 @@ window.Initialize = w =>
         Log.Info($"Exported: {string.Join(", ", result.Files)}; {result.Objects} objects, {result.CopiedFiles} asset files.");
         foreach (var warning in result.Warnings) Log.Warn(warning);
         w.Close();
+        return;
+    }
+#endif
+
+#if !GAME
+    // A project of its own: its saved game, or a fresh empty scene for a new project.
+    if (IsEditor && w.Project is { IsEngineSandbox: false } project)
+    {
+        if (!SolciteEngine.Editor.ProjectLoader.TryBuild(w, project)) BuildNewProjectScene(w);
         return;
     }
 #endif
@@ -116,6 +143,21 @@ return 0;
 
 static float[] ParseFloats(string text) =>
     text.Split(',').Select(s => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+
+// ---- A new project's scene: sun, sky and a ground to build on ---------------------------------------------------------
+static void BuildNewProjectScene(Window window)
+{
+    var scene = window.Scene;
+    scene.Name = "Main";
+    scene.Sun = new Sun { TimeOfDay = 14f, Latitude = 45f, Declination = 20f, Intensity = 2.2f };
+    scene.Skybox = new Skybox(new PhysicalSky { Clouds = new CloudLayer() });
+    var ground = new GameObject(Primitives.Plane(60f, 60f, 1), 0, 0, 0) { Name = "Ground", CastShadow = false };
+    ground.SetTexture(ModelCache.Register("procedural:floor", Texture.Checkerboard(512, 16, (200, 200, 200), (120, 125, 120))));
+    ground.Material.SpecularStrength = 0.1f;
+    scene.Add(ground);
+    window.Camera.Position = new Vector3(0f, 3f, 9f);
+    window.Camera.LookAt(new Vector3(0f, 1f, 0f));
+}
 
 // ---- The demo scene (what the editor and the game start with) ----------------------------------------------------
 static void BuildDemoScene(Window window)

@@ -171,7 +171,8 @@ public sealed class GrassLayer : IDisposable
             Add(blade.Xyz, blade.W);
     }
 
-    private const string DataMagic = "SolciteEngineGRAS";
+    // Kept from before the project was renamed: existing data files start with these bytes.
+    private const string DataMagic = "GT67GRAS";
     private const int DataVersion = 1;
 
     /// <summary>

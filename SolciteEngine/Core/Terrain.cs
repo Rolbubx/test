@@ -249,7 +249,8 @@ public sealed class Terrain : IDisposable
     public void Import(string heightsBase64, string? colorsBase64 = null) =>
         Import(Convert.FromBase64String(heightsBase64), colorsBase64 != null ? Convert.FromBase64String(colorsBase64) : null);
 
-    private const string DataMagic = "SolciteEngineTERR";
+    // Kept from before the project was renamed: existing data files start with these bytes.
+    private const string DataMagic = "GT67TERR";
     private const int DataVersion = 1;
 
     /// <summary>
