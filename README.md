@@ -23,7 +23,7 @@ it in C#, and ship a game that contains only the runtime it needs.
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 - A GPU and driver with OpenGL 4.1 core support (Windows, Linux and macOS)
-- Linux: `libglfw3`, `libopenal1` and `libassimp5` (or the equivalent for your distribution)
+- Linux: `libglfw3` and `libassimp5` (or the equivalent for your distribution)
 
 ## Getting started
 
@@ -33,9 +33,24 @@ cd test
 dotnet run --project SolciteEngine -c Editor
 ```
 
-The editor opens the **project launcher**. Create a project, or open an existing project folder (type its path, or drop
+The first time the editor starts it runs a short **setup** (see below), then opens the **project launcher**. Create a project, or open an existing project folder (type its path, or drop
 the folder onto the window). In Rider, the shared run configurations **SolciteEngine Editor** and **SolciteEngine Game**
 are in `.run/`.
+
+### First launch
+
+On its first start, and again after a graphics driver update, the editor shows a setup screen that:
+
+1. checks the graphics driver (OpenGL 4.1 or newer is required) and reports the renderer and the anti-aliasing available;
+2. checks the native libraries it needs (GLFW, Skia, Assimp) and tells you what to install if one is missing;
+3. compiles every engine shader once and stores the linked GPU programs in a **shader cache**;
+4. prepares the per-user folders and records the result in `setup.json`.
+
+The shader cache (`shader-cache/<driver>/` in the engine's user data folder: `%LocalAppData%/SolciteEngine` on Windows,
+`~/.local/share/SolciteEngine` on Linux) is keyed by the shader source and the exact driver, so later starts load the
+programs from disk instead of compiling them, and a new driver gets a fresh cache. Games use the same cache. Delete the
+folder at any time to rebuild it, or start the editor with `--setup` to run the setup again. (OpenGL itself is the
+driver's: the engine uses it through OpenTK, so there is nothing to compile for it.)
 
 ### Projects
 
@@ -59,7 +74,7 @@ with its `.reference` file to keep its identity. References are not shipped with
 
 **Compile** saves the map into `generated-game/`. Reopening the project compiles it in memory and shows the map as it was
 left. The folder button in the toolbar returns to the launcher. Recent projects are stored in
-`%AppData%/SolciteEngine/recent-projects.json` (`~/.config/SolciteEngine/` on Linux).
+`recent-projects.json` in the same user data folder.
 
 ### Running and shipping a game
 
@@ -98,6 +113,7 @@ SolciteEngine/publish-game.ps1 -NoAot     # Windows: trimmed ReadyToRun single-f
 | `--editor` / `--game` | force editor or game mode |
 | `--project <folder>` | open a project without the launcher |
 | `--sandbox` | open the engine's own folder as a project |
+| `--setup` | run the first-launch setup again |
 | `--launcher` | show the launcher even with `--frames` |
 | `--frames N` | close after N frames (smoke tests) |
 | `--screenshot <file.png>` | with `--frames`: save the last frame |

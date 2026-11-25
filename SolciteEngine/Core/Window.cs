@@ -71,7 +71,14 @@ public sealed class Window : GameWindow
     /// <summary>The project the editor has open (null until one is chosen).</summary>
     public ProjectPaths? Project { get; set; }
 
+    /// <summary>Run the first-launch setup (driver and library checks, shader cache) before the editor opens, if it was not done yet.</summary>
+    public bool RunSetup { get; set; }
+
+    /// <summary>Run the setup even if it was done before (<c>--setup</c>).</summary>
+    public bool ForceSetup { get; set; }
+
     private ProjectLauncher? _launcher;
+    private FirstRunSetup? _setup;
 #endif
 
     /// <summary>Called once the GL context is ready; build the scene here.</summary>
@@ -140,14 +147,29 @@ public sealed class Window : GameWindow
         Viewport = new UiRect(0f, 0f, ClientSize.X, ClientSize.Y);
 
 #if !GAME
+        if (IsEditor && RunSetup && (ForceSetup || !FirstRunSetup.IsUpToDate()))
+        {
+            _setup = new FirstRunSetup(this);   // then the launcher or the project (OpenEditorFlow)
+            return;
+        }
+        OpenEditorFlow();
+#else
+        StartSession();
+#endif
+    }
+
+#if !GAME
+    /// <summary>After the setup: the project launcher, or straight to the project when one was given.</summary>
+    private void OpenEditorFlow()
+    {
         if (IsEditor && ShowLauncher)
         {
             _launcher = new ProjectLauncher(this);   // the editor starts once a project is chosen (StartSession)
             return;
         }
-#endif
         StartSession();
     }
+#endif
 
     /// <summary>Builds the first scene and, in the editor, opens the project.</summary>
     private void StartSession()
@@ -251,6 +273,20 @@ public sealed class Window : GameWindow
         Ui.Begin(dt);
         Viewport = new UiRect(0f, 0f, ClientSize.X, ClientSize.Y);
 #if !GAME
+        if (_setup != null)
+        {
+            _setup.Draw();
+            Ui.End();
+            if (ScreenshotPath != null && _maxFrames > 0 && _frameCount + 1 >= _maxFrames) SaveScreenshot(ScreenshotPath);
+            SwapBuffers();
+            if (_maxFrames > 0 && ++_frameCount >= _maxFrames) Close();
+            if (_setup.Finished)
+            {
+                _setup = null;
+                OpenEditorFlow();
+            }
+            return;
+        }
         if (_launcher != null)
         {
             _launcher.Draw(dt);

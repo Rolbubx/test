@@ -41,7 +41,7 @@ generated = true;   // the shipped game is the one the editor compiled (the demo
 _ = exportDemo;     // "--export-demo" needs the editor, which the Game build leaves out
 #endif
 string? screenshot = null, startScene = null, projectFolder = null;
-bool sandbox = false, forceLauncher = false;
+bool sandbox = false, forceLauncher = false, forceSetup = false;
 float[]? cameraView = null;
 var argv = Environment.GetCommandLineArgs();
 for (int i = 1; i < argv.Length; i++)
@@ -65,6 +65,7 @@ for (int i = 1; i < argv.Length; i++)
     if (argv[i] == "--scene" && i + 1 < argv.Length) startScene = argv[i + 1];   // with --generated: start in this scene
     if (argv[i] == "--project" && i + 1 < argv.Length) projectFolder = argv[i + 1];   // the editor: open this project folder
     if (argv[i] == "--launcher") forceLauncher = true;   // show the project launcher even with --frames (screenshot tests)
+    if (argv[i] == "--setup") forceSetup = true;   // the editor: run the first-launch setup again (checks, shader cache)
     if (argv[i] == "--sandbox") sandbox = true;   // the editor: open the engine's own folder, without the project launcher
 }
 // The editor opens the map saved by the last Compile (the demo scene only when nothing was compiled yet, or with --demo).
@@ -84,6 +85,8 @@ if (IsEditor && projectFolder != null)
 using var window = new Window(IsEditor ? "SolciteEngine Editor" : "SolciteEngine", 1280, 720, maxFrames) { IsEditor = IsEditor, UncappedFps = noVsync, ScreenshotPath = screenshot };
 #if !GAME
 window.ShowLauncher = showLauncher;
+window.RunSetup = IsEditor && (maxFrames == 0 || forceSetup) && !exportDemo;   // smoke tests skip it unless --setup is given
+window.ForceSetup = forceSetup;
 window.Project = chosenProject;
 #endif
 window.Initialize = w =>

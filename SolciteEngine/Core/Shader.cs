@@ -88,6 +88,12 @@ public sealed class Shader : IDisposable
     private static int? Build(string vertSource, string fragSource, string name)
     {
         LastError = null;
+
+        // A program compiled before (same source, same driver) is loaded from the shader cache.
+        string key = ShaderCache.KeyOf(VersionHeader + vertSource, VersionHeader + fragSource);
+        int cached = ShaderCache.TryLoad(key);
+        if (cached != 0) return cached;
+
         int vs = Compile(ShaderType.VertexShader, vertSource, name);
         int fs = Compile(ShaderType.FragmentShader, fragSource, name);
         if (vs == 0 || fs == 0)
@@ -98,6 +104,7 @@ public sealed class Shader : IDisposable
         }
 
         int program = GL.CreateProgram();
+        if (ShaderCache.Supported) GL.ProgramParameter(program, ProgramParameterName.ProgramBinaryRetrievableHint, 1);
         GL.AttachShader(program, vs);
         GL.AttachShader(program, fs);
         GL.LinkProgram(program);
@@ -114,6 +121,7 @@ public sealed class Shader : IDisposable
             GL.DeleteProgram(program);
             return null;
         }
+        ShaderCache.Store(key, program);
         return program;
     }
 

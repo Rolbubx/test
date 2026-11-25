@@ -2,15 +2,14 @@ using System.Text.Json;
 
 namespace SolciteEngine.Editor;
 
-/// <summary>The projects opened lately, kept per user in <c>%AppData%/SolciteEngine/recent-projects.json</c> (<c>~/.config</c> on Linux).</summary>
+/// <summary>The projects opened lately, kept per user in <c>recent-projects.json</c> in the engine's user data folder.</summary>
 public static class RecentProjects
 {
     public sealed record Entry(string Path, string Name, DateTime LastOpenedUtc);
 
     private const int MaxEntries = 12;
 
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SolciteEngine", "recent-projects.json");
+    private static string FilePath => Path.Combine(Core.ShaderCache.UserDataFolder, "recent-projects.json");
 
     /// <summary>The recent projects, most recent first. Folders that no longer hold a project are left out.</summary>
     public static List<Entry> Load()
