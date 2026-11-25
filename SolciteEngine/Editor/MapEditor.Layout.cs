@@ -152,6 +152,10 @@ public sealed partial class MapEditor
         DrawProjectPopup();
 
         g.SameLine();
+        if (Vcs is { } vcs && g.IconButton(IconKind.ArrowUp, "vcs")) { vcs.Refresh(); g.TogglePopup("##vcs", g.LastItemRect); }
+        if (Vcs != null) { g.Tooltip("Version control (git / GitHub)"); DrawVersionControlPopup(); }
+
+        g.SameLine();
         if (g.IconButton(IconKind.Gear, "settings")) g.TogglePopup("##settings", g.LastItemRect);
         g.Tooltip("Editor settings");
         DrawSettingsPopup();

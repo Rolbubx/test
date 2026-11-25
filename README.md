@@ -76,6 +76,13 @@ with its `.reference` file to keep its identity. References are not shipped with
 left. The folder button in the toolbar returns to the launcher. Recent projects are stored in
 `recent-projects.json` in the same user data folder.
 
+### Version control
+
+Each project can live in a git repository (GitHub or any other remote). In the editor, the toolbar's **up-arrow** button
+opens the version control panel: start a repository (`cache/` and the build folders are ignored), commit all changes with
+a message, set the GitHub remote URL, then pull and push. It needs `git` on the PATH, and git signed in to GitHub
+(credential manager or SSH key). Press **Compile** before committing: the map is saved only by Compile.
+
 ### Running and shipping a game
 
 ```bash
