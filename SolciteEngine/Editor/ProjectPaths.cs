@@ -8,8 +8,11 @@ namespace SolciteEngine.Editor;
 /// </summary>
 public sealed class ProjectPaths
 {
-    /// <summary>The file that marks a folder as a SolciteEngine project.</summary>
-    public const string ProjectFileName = "project.solcite.json";
+    /// <summary>The file that marks a folder as a SolciteEngine project (name, engine, creation date).</summary>
+    public const string ProjectFileName = "infos.json";
+
+    /// <summary>Prefix of the folder a new project is created in: <c>Project-&lt;name&gt;</c>.</summary>
+    public const string FolderPrefix = "Project-";
 
     private ProjectPaths(string root, string name, bool isEngineSandbox)
     {
@@ -24,20 +27,32 @@ public sealed class ProjectPaths
     /// <summary>The project's name (shown in the launcher and in the window title).</summary>
     public string Name { get; }
 
-    /// <summary>True for the engine's own folder, which the editor can still open as a sandbox project.</summary>
+    /// <summary>True for the engine's own folder, which the editor can still open as a sandbox project (it keeps its older layout).</summary>
     public bool IsEngineSandbox { get; }
 
     /// <summary>The SolciteEngine.csproj that the generated game builds against (null when the engine sources are not around).</summary>
     public string? EngineProject => LocateEngineProject();
 
-    public string Scripts => Path.Combine(Root, "Scripts");
-    public string Generated => Path.Combine(Root, "Generated");
-    /// <summary>The generated game: GeneratedGame.csproj, the one Game.cs and the assets it loads (Compile rewrites the whole folder).</summary>
-    public string GeneratedGame => Path.Combine(Generated, "GeneratedGame");
-    public string GeneratedGameFile => Path.Combine(GeneratedGame, "Game.cs");
-    public string Assets => Path.Combine(Root, "Assets");
+    // ---- layout ---------------------------------------------------------------------------------
+    //   Project-<name>/  infos.json  generated-game/  assets/ (Scripts, Models, Textures, Sounds, Skybox, Prefabs, Shaders/Custom)  cache/
+    // The engine sandbox is the engine's own folder: Scripts/, Assets/, Prefabs/, Shaders/Custom and Generated/GeneratedGame.
+
+    /// <summary>Everything the user puts in the project: scripts, models, textures, sounds, prefabs and shaders.</summary>
+    public string Assets => IsEngineSandbox ? Path.Combine(Root, "Assets") : Path.Combine(Root, "assets");
+    public string Scripts => IsEngineSandbox ? Path.Combine(Root, "Scripts") : Path.Combine(Assets, "Scripts");
     public string Models => Path.Combine(Assets, "Models");
     public string Textures => Path.Combine(Assets, "Textures");
+    public string Sounds => Path.Combine(Assets, "Sounds");
+    public string Skybox => Path.Combine(Assets, "Skybox");
+    public string Prefabs => IsEngineSandbox ? Path.Combine(Root, "Prefabs") : Path.Combine(Assets, "Prefabs");
+    public string CustomShaders => IsEngineSandbox ? Path.Combine(Root, "Shaders", "Custom") : Path.Combine(Assets, "Shaders", "Custom");
+
+    /// <summary>The generated game: GeneratedGame.csproj, the one Game.cs and the assets it loads (Compile rewrites the whole folder).</summary>
+    public string GeneratedGame => IsEngineSandbox ? Path.Combine(Root, "Generated", "GeneratedGame") : Path.Combine(Root, "generated-game");
+    public string GeneratedGameFile => Path.Combine(GeneratedGame, "Game.cs");
+
+    /// <summary>Files the editor can rebuild at any time (the asset index, editor settings); safe to delete.</summary>
+    public string Cache => IsEngineSandbox ? Root : Path.Combine(Root, "cache");
 
     /// <summary>Searches upwards from the executable (and the working directory) for SolciteEngine.csproj. Null if not found.</summary>
     private static string? LocateEngineProject()
@@ -55,7 +70,7 @@ public sealed class ProjectPaths
     public static ProjectPaths? Locate() =>
         LocateEngineProject() is { } csproj ? new ProjectPaths(Path.GetDirectoryName(csproj)!, "SolciteEngine sandbox", isEngineSandbox: true) : null;
 
-    /// <summary>The content of <c>project.solcite.json</c>.</summary>
+    /// <summary>The content of <c>infos.json</c>.</summary>
     private sealed class ProjectFile
     {
         public string Name { get; set; } = "";
@@ -66,7 +81,7 @@ public sealed class ProjectPaths
     /// <summary>True if <paramref name="folder"/> holds a project file.</summary>
     public static bool IsProjectFolder(string folder) => File.Exists(Path.Combine(folder, ProjectFileName));
 
-    /// <summary>Opens the project in <paramref name="folder"/> (it must contain project.solcite.json).</summary>
+    /// <summary>Opens the project in <paramref name="folder"/> (it must contain infos.json).</summary>
     public static ProjectPaths? Open(string folder, out string error)
     {
         error = "";
@@ -110,8 +125,9 @@ public sealed class ProjectPaths
     }
 
     /// <summary>
-    /// Creates the project <paramref name="name"/> in <c>&lt;location&gt;/&lt;name&gt;</c>: the project file, Scripts (with the shared
-    /// usings and a first script), Assets, Prefabs and Shaders/Custom. The folder must not exist yet or must be empty.
+    /// Creates the project <paramref name="name"/> in <c>&lt;location&gt;/Project-&lt;name&gt;</c>: <c>infos.json</c>, <c>assets/</c>
+    /// (Scripts with the shared usings and a first script, Models, Textures, Sounds, Skybox, Prefabs, Shaders/Custom),
+    /// <c>generated-game/</c> and <c>cache/</c>. The folder must not exist yet or must be empty.
     /// </summary>
     public static ProjectPaths? Create(string location, string name, out string error)
     {
@@ -122,20 +138,23 @@ public sealed class ProjectPaths
 
         try
         {
-            string folder = Path.GetFullPath(Path.Combine(location.Trim().Trim('"'), clean));
+            string folder = Path.GetFullPath(Path.Combine(location.Trim().Trim('"'), FolderPrefix + clean));
             if (File.Exists(Path.Combine(folder, ProjectFileName))) { error = "There already is a project in that folder."; return null; }
             if (Directory.Exists(folder) && Directory.EnumerateFileSystemEntries(folder).Any()) { error = "That folder already exists and is not empty."; return null; }
 
             Directory.CreateDirectory(folder);
-            foreach (var sub in new[] { "Scripts", "Assets/Models", "Assets/Textures", "Assets/Sounds", "Assets/Skybox", "Prefabs", "Shaders/Custom" })
-                Directory.CreateDirectory(Path.Combine(folder, sub));
+            var project = new ProjectPaths(folder, clean, isEngineSandbox: false);
+            foreach (var sub in new[] { project.Scripts, project.Models, project.Textures, project.Sounds, project.Skybox, project.Prefabs,
+                                        project.CustomShaders, project.GeneratedGame, project.Cache })
+                Directory.CreateDirectory(sub);
 
             File.WriteAllText(Path.Combine(folder, ProjectFileName),
                 JsonSerializer.Serialize(new ProjectFile { Name = clean }, new JsonSerializerOptions { WriteIndented = true }));
-            File.WriteAllText(Path.Combine(folder, "Scripts", "_Usings.cs"), UsingsTemplate);
-            File.WriteAllText(Path.Combine(folder, "Scripts", "MyScript.cs"), ScriptTemplate);
-            File.WriteAllText(Path.Combine(folder, ".gitignore"), "Generated/GeneratedGame/bin/\nGenerated/GeneratedGame/obj/\nGenerated/GeneratedGame.new/\nGenerated/GeneratedGame.old/\n");
-            return new ProjectPaths(folder, clean, isEngineSandbox: false);
+            File.WriteAllText(Path.Combine(project.Scripts, "_Usings.cs"), UsingsTemplate);
+            File.WriteAllText(Path.Combine(project.Scripts, "MyScript.cs"), ScriptTemplate);
+            File.WriteAllText(Path.Combine(folder, ".gitignore"), "cache/\ngenerated-game/bin/\ngenerated-game/obj/\ngenerated-game.new/\ngenerated-game.old/\n");
+            AssetDatabase.Sync(project);
+            return project;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
@@ -179,8 +198,20 @@ public sealed class ProjectPaths
         {
             string prefix = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
             if (full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                return full[prefix.Length..].Replace('\\', '/');
+                return Normalize(full[prefix.Length..].Replace('\\', '/'));
         }
         return null;
+    }
+
+    /// <summary>
+    /// The paths the engine stores in a game are always <c>Assets/...</c> and <c>Generated/GeneratedGame/...</c>; a project's
+    /// folders are <c>assets/</c> and <c>generated-game/</c>, so they are translated.
+    /// </summary>
+    private string Normalize(string relative)
+    {
+        if (IsEngineSandbox) return relative;
+        if (relative.StartsWith("assets/", StringComparison.Ordinal)) return "Assets/" + relative["assets/".Length..];
+        if (relative.StartsWith("generated-game/", StringComparison.Ordinal)) return "Generated/GeneratedGame/" + relative["generated-game/".Length..];
+        return relative;
     }
 }

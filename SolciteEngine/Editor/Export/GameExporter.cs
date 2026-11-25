@@ -214,6 +214,9 @@ public sealed class GameExporter
     /// sound, mesh and shader the editor copied into Assets/) as <c>Assets/Game/...</c>, plus the engine's own shaders,
     /// fonts, skybox and prefabs, next to the executable.
     /// </summary>
+    /// <summary>A project folder as seen from GeneratedGame.csproj (MSBuild path with backslashes).</summary>
+    private string Relative(string folder) => Path.GetRelativePath(_paths.GeneratedGame, folder).Replace('/', '\\');
+
     private string ProjectFileFor(List<string> warnings)
     {
         string engineProject, engineDirectory, customShaders = "";
@@ -227,7 +230,8 @@ public sealed class GameExporter
             // A project of its own builds against the engine sources the editor was started from.
             engineProject = Path.GetRelativePath(_paths.GeneratedGame, csproj).Replace('/', '\\');
             engineDirectory = Path.GetRelativePath(_paths.GeneratedGame, Path.GetDirectoryName(csproj)!).Replace('/', '\\') + "\\";
-            customShaders = """<Compile Include="..\..\Scripts\**\*.cs" />""" + "\n                " + """<None Include="..\..\Shaders\Custom\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Shaders\Custom\%(RecursiveDir)%(Filename)%(Extension)" />""";
+            customShaders = $"""<Compile Include="{Relative(_paths.Scripts)}\**\*.cs" />""" + "\n                " +
+                            $"""<None Include="{Relative(_paths.CustomShaders)}\**\*.*" Exclude="{Relative(_paths.CustomShaders)}\**\*.reference" CopyToOutputDirectory="PreserveNewest" Link="Shaders\Custom\%(RecursiveDir)%(Filename)%(Extension)" />""";
         }
         else
         {
@@ -235,7 +239,8 @@ public sealed class GameExporter
             engineProject = @"..\..\SolciteEngine.csproj";
             engineDirectory = @"..\..\";
         }
-        return ProjectFile.Replace("{ENGINEDIR}", engineDirectory).Replace("{ENGINE}", engineProject).Replace("{CUSTOMSHADERS}", customShaders);
+        return ProjectFile.Replace("{SKYBOX}", Relative(_paths.Skybox)).Replace("{PREFABS}", Relative(_paths.Prefabs))
+            .Replace("{ENGINEDIR}", engineDirectory).Replace("{ENGINE}", engineProject).Replace("{CUSTOMSHADERS}", customShaders);
     }
 
     private const string ProjectFile = """
@@ -292,8 +297,8 @@ public sealed class GameExporter
                 <None Include="{ENGINEDIR}Shaders\**\*.*" Exclude="{ENGINEDIR}Shaders\Custom\**" CopyToOutputDirectory="PreserveNewest" Link="Shaders\%(RecursiveDir)%(Filename)%(Extension)" />
                 <None Include="{ENGINEDIR}Assets\Fonts\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Assets\Fonts\%(RecursiveDir)%(Filename)%(Extension)" />
                 {CUSTOMSHADERS}
-                <None Include="..\..\Assets\Skybox\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Assets\Skybox\%(RecursiveDir)%(Filename)%(Extension)" />
-                <None Include="..\..\Prefabs\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Prefabs\%(RecursiveDir)%(Filename)%(Extension)" />
+                <None Include="{SKYBOX}\**\*.*" Exclude="{SKYBOX}\**\*.reference" CopyToOutputDirectory="PreserveNewest" Link="Assets\Skybox\%(RecursiveDir)%(Filename)%(Extension)" />
+                <None Include="{PREFABS}\**\*.*" Exclude="{PREFABS}\**\*.reference" CopyToOutputDirectory="PreserveNewest" Link="Prefabs\%(RecursiveDir)%(Filename)%(Extension)" />
             </ItemGroup>
 
         </Project>

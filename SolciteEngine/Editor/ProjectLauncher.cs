@@ -105,7 +105,7 @@ public sealed class ProjectLauncher
 
         g.Spacing(8f);
         g.SeparatorText("Open a project folder");
-        g.InputText("Folder", ref _openPath, "path to a folder that contains project.solcite.json");
+        g.InputText("Folder", ref _openPath, "path to a Project-<name> folder (it contains infos.json)");
         if (g.Button("Open folder", 160f)) OpenFolder(_openPath);
         g.SameLine();
         g.TextDim("or drop the folder onto this window");
@@ -120,10 +120,11 @@ public sealed class ProjectLauncher
         string clean = ProjectPaths.CleanName(_newName);
         g.TextDim(clean.Length == 0
             ? "The project folder will be created inside the location."
-            : "Creates: " + Path.Combine(_newLocation.Trim(), clean));
+            : "Creates: " + Path.Combine(_newLocation.Trim(), ProjectPaths.FolderPrefix + clean));
         g.Spacing(8f);
-        g.TextWrapped("A project is a folder with its Scripts, Assets, Prefabs and Shaders, plus the game the editor writes when " +
-                      "you press Compile (Generated/GeneratedGame).", dim: true);
+        g.TextWrapped("A project is a Project-<name> folder with infos.json, assets (scripts, models, textures, sounds, prefabs, shaders), " +
+                      "cache and the game the editor writes when " +
+                      "you press Compile (generated-game).", dim: true);
         g.Spacing(10f);
 
         if (g.Button("Create project", 200f, ButtonStyle.Primary))
@@ -169,6 +170,6 @@ public sealed class ProjectLauncher
                 return;
             }
         }
-        _error = "Drop a project folder (it contains project.solcite.json).";
+        _error = "Drop a project folder (it contains infos.json).";
     }
 }

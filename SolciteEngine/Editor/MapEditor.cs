@@ -29,7 +29,7 @@ public enum EditorTool
 /// The in-game map editor (enabled with <c>IsEditor</c> in Program.cs): docked panels around a 3D viewport. Drop model
 /// files onto the window, drag shapes, prefabs and scripts out of the Project panel, move/rotate/scale objects and lights with gizmos, edit
 /// the lighting and post-processing, design the game's UI, attach C# scripts (edited in Visual Studio Code or any other
-/// editor), sculpt terrain, press Play to try it and Compile to write the whole game to <c>Generated/GeneratedGame/</c>.
+/// editor), sculpt terrain, press Play to try it and Compile to write the whole game to the project's <c>generated-game/</c> folder.
 /// </summary>
 public sealed partial class MapEditor : IDisposable
 {
@@ -79,7 +79,8 @@ public sealed partial class MapEditor : IDisposable
         _window = window;
         Paths = project;
         // Shaders written in the editor live in the project (Shaders/Custom) and are found before the copies in the build output
-        if (Paths != null) window.Renderer.Custom.AddDirectory(Path.Combine(Paths.Root, "Shaders", "Custom"), first: true);
+        if (Paths != null) window.Renderer.Custom.AddDirectory(Paths.CustomShaders, first: true);
+        if (Paths != null) AssetDatabase.Sync(Paths);
         Settings = EditorSettings.Load(Paths);
         Scripts = new ScriptWorkspace(Paths);
         Prefabs = new PrefabLibrary(Paths, Scripts);
@@ -456,7 +457,7 @@ public sealed partial class MapEditor : IDisposable
         }
     }
 
-    /// <summary>Copies a dropped sound file into Assets/Sounds and places a <see cref="Sound"/> for it in the scene.</summary>
+    /// <summary>Copies a dropped sound file into the project's Sounds folder and places a <see cref="Sound"/> for it in the scene.</summary>
     private void ImportSound(string file, Vector3 at)
     {
         string fileName = Path.GetFileName(file);
@@ -464,10 +465,10 @@ public sealed partial class MapEditor : IDisposable
         try
         {
             // Into the project (kept) and the build output (so it plays right now, before the next build)
-            foreach (var root in new[] { Paths?.Root, AppContext.BaseDirectory })
+            foreach (var folder in new[] { Paths?.Sounds, Path.Combine(AppContext.BaseDirectory, "Assets", "Sounds") })
             {
-                if (root == null) continue;
-                string target = Path.Combine(root, relative);
+                if (folder == null) continue;
+                string target = Path.Combine(folder, fileName);
                 if (string.Equals(Path.GetFullPath(file), Path.GetFullPath(target), StringComparison.OrdinalIgnoreCase)) continue;
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 File.Copy(file, target, overwrite: true);
@@ -640,7 +641,8 @@ public sealed partial class MapEditor : IDisposable
                 $"{result.Sounds} sound(s), {result.UiElements} UI element(s); {result.CopiedFiles} asset file(s) shipped " +
                 "(models, textures, sounds, UI images).");
             foreach (var warning in result.Warnings) Say("Warning: " + warning, error: true);
-            Say("Play it: dotnet run --project Generated/GeneratedGame. Ship it: dotnet publish Generated/GeneratedGame -c Release -r win-x64 (only the game and the runtime it needs, no editor).");
+            string game = Path.GetRelativePath(Paths.Root, Paths.GeneratedGame).Replace('\\', '/');
+            Say($"Play it: dotnet run --project {game}. Ship it: dotnet publish {game} -c Release -r win-x64 (only the game and the runtime it needs, no editor).");
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
         {

@@ -58,16 +58,21 @@ public static class ModelCache
     /// </summary>
     public static string? ProjectRoot { get; set; }
 
+    /// <summary>The open project's assets folder (<c>Assets/...</c> paths are looked for here) and the assets its generated game ships (<c>Assets/Game/...</c>).</summary>
+    public static string? ProjectAssets { get; set; }
+    public static string? ProjectGameAssets { get; set; }
+
     /// <summary>Relative paths are resolved against the open project, then against the executable folder, where assets are copied.</summary>
     public static string ResolvePath(string path)
     {
         if (Path.IsPathRooted(path)) return path;
         if (ProjectRoot != null)
         {
-            const string game = "Assets/Game/";
+            const string game = "Assets/Game/", assets = "Assets/";
             string normalized = path.Replace('\\', '/');
-            string inProject = normalized.StartsWith(game, StringComparison.OrdinalIgnoreCase)
-                ? Path.Combine(ProjectRoot, "Generated", "GeneratedGame", "Assets", normalized[game.Length..])
+            string inProject =
+                normalized.StartsWith(game, StringComparison.OrdinalIgnoreCase) && ProjectGameAssets != null ? Path.Combine(ProjectGameAssets, normalized[game.Length..])
+                : normalized.StartsWith(assets, StringComparison.OrdinalIgnoreCase) && ProjectAssets != null ? Path.Combine(ProjectAssets, normalized[assets.Length..])
                 : Path.Combine(ProjectRoot, normalized);
             if (File.Exists(inProject) || Directory.Exists(inProject)) return Path.GetFullPath(inProject);
         }

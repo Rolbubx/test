@@ -159,6 +159,8 @@ public sealed class Window : GameWindow
             if (Project != null)
             {
                 ModelCache.ProjectRoot = Project.Root;
+                ModelCache.ProjectAssets = Project.Assets;
+                ModelCache.ProjectGameAssets = Path.Combine(Project.GeneratedGame, "Assets");
                 RecentProjects.Add(Project);
                 Title = $"SolciteEngine Editor - {Project.Name}";
             }

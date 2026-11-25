@@ -132,7 +132,7 @@ public static class ObjectsExporter
     {
         string? file = new[]
             {
-                Path.Combine(context.Paths.Root, "Shaders", "Custom"),
+                context.Paths.CustomShaders,
                 Path.Combine(AppContext.BaseDirectory, "Shaders", "Custom"),
                 Path.Combine(AppContext.BaseDirectory, "Assets", "Game", "Shaders"),
             }

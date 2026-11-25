@@ -267,12 +267,13 @@ public sealed partial class MapEditor
         if ((DateTime.Now - _lastFileScan).TotalSeconds < 3) return;
         _lastFileScan = DateTime.Now;
 
-        string root = Paths?.Root ?? AppContext.BaseDirectory;
-        string models = Paths?.Models ?? Path.Combine(root, "Assets", "Models");
+        string models = Paths?.Models ?? Path.Combine(AppContext.BaseDirectory, "Assets", "Models");
+        string sounds = Paths?.Sounds ?? Path.Combine(AppContext.BaseDirectory, "Assets", "Sounds");
+        if (Paths != null) AssetDatabase.Sync(Paths);
         _modelFiles = Scan(models, ModelImporter.IsModelFile);
-        _soundFiles = Scan(Path.Combine(root, "Assets", "Sounds"), AudioClip.IsAudioFile);
+        _soundFiles = Scan(sounds, AudioClip.IsAudioFile);
 
-        if (Paths != null) _window.Renderer.Custom.AddDirectory(Path.Combine(Paths.Root, "Shaders", "Custom"), first: true);
+        if (Paths != null) _window.Renderer.Custom.AddDirectory(Paths.CustomShaders, first: true);
 
         static List<string> Scan(string folder, Func<string, bool> accept) => Directory.Exists(folder)
             ? Directory.EnumerateFiles(folder, "*.*", SearchOption.AllDirectories).Where(accept)
@@ -298,7 +299,7 @@ public sealed partial class MapEditor
 
     private void CreateShader(ShaderKind kind)
     {
-        string folder = Path.Combine(Paths!.Root, "Shaders", "Custom");
+        string folder = Paths!.CustomShaders;
         string name = new string(_newShaderName.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
         string path = Path.Combine(folder, name + ShaderLibrary.Extension);
         if (name.Length == 0 || char.IsDigit(name[0])) Say("Use letters, digits and _ (not starting with a digit).", error: true);

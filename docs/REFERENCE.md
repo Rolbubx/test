@@ -2,6 +2,10 @@
 
 Detailed documentation of the editor and the engine API. For installation, projects and the build, see the [README](../README.md).
 
+> **Paths.** In a project (`Project-<name>/`), scripts are in `assets/Scripts/`, prefabs in `assets/Prefabs/`, custom shaders in
+> `assets/Shaders/Custom/` and the game the editor writes in `generated-game/`. The engine's own sandbox keeps the older
+> `Scripts/`, `Prefabs/` and `Generated/GeneratedGame/` folders; paths below use the sandbox names.
+
 | Key / mouse | Action |
 |---|---|
 | WASD, Q/E (or Ctrl/Space), Shift | move, down/up, sprint |

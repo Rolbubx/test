@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace SolciteEngine.Editor;
 
-/// <summary>Small preferences of the editor, kept in <c>editor.settings.json</c> next to the project file.</summary>
+/// <summary>Small preferences of the editor, kept in <c>editor.settings.json</c> in the project's cache folder.</summary>
 public sealed class EditorSettings
 {
     private const string FileName = "editor.settings.json";
@@ -32,7 +32,7 @@ public sealed class EditorSettings
         if (paths == null) return new EditorSettings();
         try
         {
-            string file = Path.Combine(paths.Root, FileName);
+            string file = Path.Combine(paths.Cache, FileName);
             if (File.Exists(file)) return JsonSerializer.Deserialize<EditorSettings>(File.ReadAllText(file)) ?? new EditorSettings();
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
@@ -47,7 +47,8 @@ public sealed class EditorSettings
         if (paths == null) return;
         try
         {
-            File.WriteAllText(Path.Combine(paths.Root, FileName), JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            Directory.CreateDirectory(paths.Cache);
+            File.WriteAllText(Path.Combine(paths.Cache, FileName), JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

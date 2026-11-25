@@ -28,7 +28,7 @@ public sealed class PrefabLibrary
         Prefab.ScriptTypeResolver = name => scripts.Types.FirstOrDefault(t => t.FullName == name) ?? fallback(name);
     }
 
-    private string ProjectFolder => Path.Combine(_paths!.Root, "Prefabs");
+    private string ProjectFolder => _paths!.Prefabs;
     private static string OutputFolder => Path.Combine(AppContext.BaseDirectory, "Prefabs");
 
     /// <summary>The prefab names (the folders are scanned at most every two seconds).</summary>

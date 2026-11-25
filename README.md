@@ -39,27 +39,33 @@ are in `.run/`.
 
 ### Projects
 
-A project is a folder:
+A project is a `Project-<name>` folder, laid out like a Unity project:
 
 ```
-MyGame/
-  project.solcite.json     marks the folder as a project (name, creation date)
-  Scripts/                 C# scripts, compiled live by the editor
-  Assets/  Prefabs/        imported models, textures, sounds, skybox; saved prefabs
-  Shaders/Custom/          custom shaders
-  Generated/GeneratedGame/ what Compile writes: the whole game (scenes, UI)
-  editor.settings.json     editor preferences for this project
+Project-MyGame/
+  infos.json                 name, engine and creation date: marks the folder as a project
+  assets/                    everything you author
+    Scripts/                 C# scripts, compiled live by the editor
+    Models/ Textures/ Sounds/ Skybox/ Prefabs/ Shaders/Custom/
+    tree.glb
+    tree.glb.reference       the asset's identity (GUID, type), next to every asset
+  generated-game/            what Compile writes: the whole game (scenes, UI) as a small C# project
+  cache/                     asset index and editor settings; rebuilt by the editor, safe to delete
 ```
 
-**Compile** saves the map into `Generated/GeneratedGame`. Reopening the project compiles it in memory and shows the map
-as it was left. The folder button in the toolbar returns to the launcher. Recent projects are stored in
+Every file in `assets/` gets a `<file>.reference` companion with a stable GUID and its type, created and kept up to date
+by the editor (orphans are removed, and `cache/asset-index.json` maps GUIDs to paths). Move or rename an asset together
+with its `.reference` file to keep its identity. References are not shipped with a game.
+
+**Compile** saves the map into `generated-game/`. Reopening the project compiles it in memory and shows the map as it was
+left. The folder button in the toolbar returns to the launcher. Recent projects are stored in
 `%AppData%/SolciteEngine/recent-projects.json` (`~/.config/SolciteEngine/` on Linux).
 
 ### Running and shipping a game
 
 ```bash
-dotnet run --project MyGame/Generated/GeneratedGame                    # play it
-dotnet publish MyGame/Generated/GeneratedGame -c Release -r win-x64    # ship it
+dotnet run --project Project-MyGame/generated-game                    # play it
+dotnet publish Project-MyGame/generated-game -c Release -r win-x64   # ship it
 ```
 
 A shipped game contains the game code, the engine runtime (without the editor or Roslyn), the shaders, the UI fonts, the
