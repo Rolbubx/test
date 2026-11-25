@@ -1,3 +1,4 @@
+﻿using System.Diagnostics;
 using SolciteEngine.Editor;
 using SolciteEngine.UI;
 using SolciteEngine.Utils;
@@ -146,6 +147,13 @@ public sealed class Window : GameWindow
         GameUi.QuitRequested += Close;
         Viewport = new UiRect(0f, 0f, ClientSize.X, ClientSize.Y);
 
+        // The start-up screen (logo, like other engines) first; smoke tests with --frames skip it.
+        if (_maxFrames == 0) { _splash = Stopwatch.StartNew(); return; }
+        AfterSplash();
+    }
+
+    private void AfterSplash()
+    {
 #if !GAME
         if (IsEditor && RunSetup && (ForceSetup || !FirstRunSetup.IsUpToDate()))
         {
@@ -157,6 +165,9 @@ public sealed class Window : GameWindow
         StartSession();
 #endif
     }
+
+    private const double SplashSeconds = 2.0;
+    private Stopwatch? _splash;
 
 #if !GAME
     /// <summary>After the setup: the project launcher, or straight to the project when one was given.</summary>
@@ -272,6 +283,18 @@ public sealed class Window : GameWindow
 
         Ui.Begin(dt);
         Viewport = new UiRect(0f, 0f, ClientSize.X, ClientSize.Y);
+        if (_splash != null)
+        {
+            double t = _splash.Elapsed.TotalSeconds;
+            var g = Ui.Gui;
+            if (g.Begin("Splash", Viewport, WindowFlags.Fixed | WindowFlags.Panel | WindowFlags.NoScroll))
+                g.DrawSplash(Viewport, t < 1.0 ? "Loading engine..." : "Loading assets...", (float)(t / SplashSeconds));
+            g.End();
+            Ui.End();
+            SwapBuffers();
+            if (t >= SplashSeconds) { _splash = null; AfterSplash(); }
+            return;
+        }
 #if !GAME
         if (_setup != null)
         {
