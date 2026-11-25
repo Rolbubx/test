@@ -50,7 +50,7 @@ public sealed class VersionControl
         Ahead = Behind = 0;
         if (Run("rev-list", "--left-right", "--count", "HEAD...@{upstream}") is { Code: 0 } counts)
         {
-            var parts = counts.Output.Split('\t', ' ', '\n', StringSplitOptions.RemoveEmptyEntries);
+            var parts = counts.Output.Split(new[] { '\t', ' ', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 2) { int.TryParse(parts[0], out int a); int.TryParse(parts[1], out int b); Ahead = a; Behind = b; }
         }
     }
