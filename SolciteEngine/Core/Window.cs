@@ -24,6 +24,9 @@ public sealed class Window : GameWindow
     /// <summary>Command line "--screenshot file.png" (with "--frames N"): saves the last frame before closing.</summary>
     public string? ScreenshotPath { get; set; }
 
+    /// <summary>Command line "--menu name": the editor opens that toolbar menu (projects, vcs, settings) on its first frame.</summary>
+    public string? StartMenu { get; set; }
+
     /// <summary>Command line "--novsync": measure raw speed instead of the 60 fps cap.</summary>
     public bool UncappedFps { get; set; }
     private int _frameCount;

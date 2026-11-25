@@ -40,7 +40,7 @@ bool noSky = false, noShadow = false, noReflect = false, generated = false, expo
 generated = true;   // the shipped game is the one the editor compiled (the demo scene is only a fallback)
 _ = exportDemo;     // "--export-demo" needs the editor, which the Game build leaves out
 #endif
-string? screenshot = null, startScene = null, projectFolder = null;
+string? startMenu = null, screenshot = null, startScene = null, projectFolder = null;
 bool sandbox = false, forceLauncher = false, forceSetup = false, update = false, checkUpdate = false;
 float[]? cameraView = null;
 var argv = Environment.GetCommandLineArgs();
@@ -64,6 +64,11 @@ for (int i = 1; i < argv.Length; i++)
     if (argv[i] == "--camera" && i + 1 < argv.Length) cameraView = ParseFloats(argv[i + 1]);   // "x,y,z,targetX,targetY,targetZ"
     if (argv[i] == "--scene" && i + 1 < argv.Length) startScene = argv[i + 1];   // with --generated: start in this scene
     if (argv[i] == "--project" && i + 1 < argv.Length) projectFolder = argv[i + 1];   // the editor: open this project folder
+    if (argv[i] == "--menu" && i + 1 < argv.Length)   // the editor: open a toolbar menu at start (works with --screenshot)
+    {
+        startMenu = argv[i + 1].Trim().TrimStart('-').ToLowerInvariant();
+        if (!new[] { "projects", "vcs", "settings" }.Contains(startMenu)) { Log.Warn($"Unknown menu '{startMenu}'. Menus: projects, vcs, settings."); startMenu = null; }
+    }
     if (argv[i] == "--launcher") forceLauncher = true;   // show the project launcher even with --frames (screenshot tests)
     if (argv[i] == "--setup") forceSetup = true;   // the editor: run the first-launch setup again (checks, shader cache)
     if (argv[i] == "--update") update = true;   // check GitHub for a newer release, install it and restart
@@ -92,7 +97,7 @@ if (IsEditor && projectFolder != null)
 #endif
 
 
-using var window = new Window(IsEditor ? "SolciteEngine Editor" : "SolciteEngine", 1280, 720, maxFrames) { IsEditor = IsEditor, UncappedFps = noVsync, ScreenshotPath = screenshot };
+using var window = new Window(IsEditor ? "SolciteEngine Editor" : "SolciteEngine", 1280, 720, maxFrames) { IsEditor = IsEditor, UncappedFps = noVsync, ScreenshotPath = screenshot, StartMenu = startMenu };
 #if !GAME
 window.ShowLauncher = showLauncher;
 window.RunSetup = IsEditor && (maxFrames == 0 || forceSetup) && !exportDemo;   // smoke tests skip it unless --setup is given

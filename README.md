@@ -83,6 +83,11 @@ opens the version control panel: start a repository (`cache/` and the build fold
 a message, set the GitHub remote URL, then pull and push. It needs `git` on the PATH, and git signed in to GitHub
 (credential manager or SSH key). Press **Compile** before committing: the map is saved only by Compile.
 
+### Screenshots of editor menus
+
+`--menu <projects|vcs|settings>` opens that toolbar menu at start; it works with `--frames` and `--screenshot`, e.g.
+`dotnet run --project SolciteEngine -c Editor -- --project Project-MyGame --menu vcs --frames 10 --screenshot vcs.png`.
+
 ### Running and shipping a game
 
 ```bash

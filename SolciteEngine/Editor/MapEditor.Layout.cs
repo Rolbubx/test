@@ -147,22 +147,30 @@ public sealed partial class MapEditor
         g.Tooltip("Snap moves, rotations and scales to the steps set in Settings.");
 
         g.SameLine();
-        if (g.IconButton(IconKind.Folder, "projects")) g.TogglePopup("##projects", g.LastItemRect);
+        if (g.IconButton(IconKind.Folder, "projects") || WantsMenu("projects")) g.TogglePopup("##projects", g.LastItemRect);
         g.Tooltip(Paths != null ? $"Project: {Paths.Name}" : "Projects");
         DrawProjectPopup();
 
         g.SameLine();
-        if (Vcs is { } vcs && g.IconButton(IconKind.ArrowUp, "vcs")) { vcs.Refresh(); g.TogglePopup("##vcs", g.LastItemRect); }
+        if (Vcs is { } vcs && (g.IconButton(IconKind.ArrowUp, "vcs") || WantsMenu("vcs"))) { vcs.Refresh(); g.TogglePopup("##vcs", g.LastItemRect); }
         if (Vcs != null) { g.Tooltip("Version control (git / GitHub)"); DrawVersionControlPopup(); }
 
         g.SameLine();
-        if (g.IconButton(IconKind.Gear, "settings")) g.TogglePopup("##settings", g.LastItemRect);
+        if (g.IconButton(IconKind.Gear, "settings") || WantsMenu("settings")) g.TogglePopup("##settings", g.LastItemRect);
         g.Tooltip("Editor settings");
         DrawSettingsPopup();
 
         g.SameLine();
         var statusRect = g.Reserve(0f, g.Theme.ButtonHeight);
         g.LabelRect(statusRect.Deflate(8f, 0f), $"{Scene.Name}  ·  {SelectionName()}", g.Theme.TextDim, g.Theme.FontSize, FontWeight.Regular, TextAlign.Left);
+    }
+
+    /// <summary>True once, on the frame the command line asked (--menu) for this toolbar menu to be open.</summary>
+    private bool WantsMenu(string name)
+    {
+        if (_window.StartMenu != name) return false;
+        _window.StartMenu = null;
+        return true;
     }
 
     private void DrawProjectPopup()
