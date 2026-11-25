@@ -20,6 +20,7 @@ public sealed class Theme
 
     // ---- text ------------------------------------------------------------------------------------
     public SKColor Text = new(228, 231, 238);
+    public SKColor TextStrong = SKColors.White;         // selected rows, the active tab: text on a light-tinted highlight
     public SKColor TextDim = new(139, 146, 163);
     public SKColor TextDisabled = new(92, 98, 112);
 
@@ -61,4 +62,24 @@ public sealed class Theme
 
     /// <summary>The default dark theme.</summary>
     public static Theme Dark() => new();
+
+    /// <summary>A light theme: same sizes, light surfaces and dark text.</summary>
+    public static Theme Light() => new()
+    {
+        Window = new(244, 245, 247), WindowBorder = new(208, 212, 220), TitleBar = new(233, 235, 240),
+        Frame = new(255, 255, 255), FrameHover = new(246, 247, 250), FrameActive = new(236, 239, 245),
+        Border = new(200, 205, 215), BorderHover = new(150, 160, 180),
+        Header = new(228, 231, 238), HeaderHover = new(216, 221, 231), Separator = new(212, 216, 224),
+        Text = new(30, 33, 41), TextStrong = new(8, 12, 24), TextDim = new(98, 105, 122), TextDisabled = new(158, 164, 178),
+        Accent = new(38, 110, 235), AccentHover = new(70, 133, 245), AccentPressed = new(24, 88, 200),
+        Button = new(226, 230, 238), ButtonHover = new(214, 220, 231), ButtonPressed = new(200, 207, 220),
+        Selection = new(38, 110, 235, 60), Hover = new(0, 0, 0, 14), ScrollThumb = new(120, 128, 146, 150), Shadow = new(0, 0, 0, 60),
+    };
+
+    /// <summary>Copies every colour and size of <paramref name="source"/> into this theme, so a Gui that holds it is restyled in place.</summary>
+    public void Apply(Theme source)
+    {
+        foreach (var field in typeof(Theme).GetFields())
+            if (!field.IsStatic) field.SetValue(this, field.GetValue(source));
+    }
 }

@@ -360,7 +360,7 @@ public sealed partial class Gui
             Icons.Draw(Canvas, icon, new UiRect(x, rect.Y + 4f, h - 8f, h - 8f), selected ? Theme.AccentHover : Theme.TextDim);
             x += h;
         }
-        DrawText(Canvas, Visible(label), new UiRect(x, rect.Y, rect.Right - x - 6f, h), selected ? SKColors.White : Theme.Text, TextAlign.Left, Theme.FontSize);
+        DrawText(Canvas, Visible(label), new UiRect(x, rect.Y, rect.Right - x - 6f, h), selected ? Theme.TextStrong : Theme.Text, TextAlign.Left, Theme.FontSize);
         return clicked;
     }
 
@@ -383,7 +383,7 @@ public sealed partial class Gui
         var iconRect = new UiRect(rect.CenterX - iconSize * 0.5f, rect.Y + size * 0.14f, iconSize, iconSize);
         Icons.Draw(Canvas, icon, iconRect, iconColor ?? (selected ? Theme.AccentHover : Theme.TextDim), 1.7f);
         DrawText(Canvas, Visible(label), new UiRect(rect.X + 4f, rect.Bottom - 26f, rect.Width - 8f, 20f),
-            selected ? SKColors.White : Theme.Text, TextAlign.Center, Theme.SmallFontSize);
+            selected ? Theme.TextStrong : Theme.Text, TextAlign.Center, Theme.SmallFontSize);
         return clicked;
     }
 

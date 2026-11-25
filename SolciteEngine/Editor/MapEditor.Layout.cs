@@ -26,6 +26,7 @@ public sealed partial class MapEditor
     private int _leftTab, _rightTab;
     private EditorTool _lastTool = EditorTool.Select;
     private string _hierarchyFilter = "";
+    private bool? _themeLight;
 
     /// <summary>True while the UI designer is in front: the viewport edits the game UI instead of the 3D scene.</summary>
     private bool UiMode => _leftTab == LeftUi;
@@ -34,6 +35,11 @@ public sealed partial class MapEditor
 
     public void Draw(float deltaTime)
     {
+        if (_themeLight != Settings.LightMode)
+        {
+            G.Theme.Apply(Settings.LightMode ? Gui.Theme.Light() : Gui.Theme.Dark());
+            _themeLight = Settings.LightMode;
+        }
         _window.DebugUI.Draw(deltaTime); // keeps the FPS smoothing running; the debug window itself stays hidden here
         WatchScripts();
 
@@ -244,6 +250,8 @@ public sealed partial class MapEditor
         g.TextWrapped("The program that opens scripts: code (Visual Studio Code), rider, notepad... or default for the system's own choice.", dim: true);
         bool autoCompile = Settings.AutoCompile;
         if (g.Checkbox("Auto-compile on save", ref autoCompile)) Settings.AutoCompile = autoCompile;
+        bool lightMode = Settings.LightMode;
+        if (g.Checkbox("Light mode", ref lightMode)) Settings.LightMode = lightMode;
 
         g.SeparatorText("Snapping");
         g.Drag("Move step", Settings.MoveSnap, 0.05f, v => { Settings.MoveSnap = v; ApplySnapSettings(); }, 0.01f, 100f);

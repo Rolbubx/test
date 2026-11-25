@@ -266,7 +266,7 @@ public sealed partial class Gui
             Icons.Draw(Canvas, icon, new UiRect(x, rect.Y + 4f, rect.Height - 8f, rect.Height - 8f), selected ? Theme.AccentHover : Theme.TextDim);
             x += rect.Height - 2f;
         }
-        DrawText(Canvas, Visible(label), new UiRect(x, rect.Y, rect.Right - x - 4f, rect.Height), selected ? SKColors.White : Theme.Text, TextAlign.Left, Theme.FontSize);
+        DrawText(Canvas, Visible(label), new UiRect(x, rect.Y, rect.Right - x - 4f, rect.Height), selected ? Theme.TextStrong : Theme.Text, TextAlign.Left, Theme.FontSize);
 
         if (open && !leaf)
         {
@@ -314,7 +314,7 @@ public sealed partial class Gui
             bool active = i == selected;
             float t = Fade(HashCode.Combine(tid, 7), active);
 
-            var color = Lerp(Lerp(Theme.TextDim, Theme.Text, hv), SKColors.White, t);
+            var color = Lerp(Lerp(Theme.TextDim, Theme.Text, hv), Theme.TextStrong, t);
             float tx = iconOnly ? tab.X + 12f : tab.X + 12f;
             if (hasIcon)
             {
@@ -443,7 +443,7 @@ public sealed partial class Gui
         bool clicked = ButtonBehavior(sid, rect, out bool hovered, out _);
         float hv = Fade(sid, hovered);
         FillRect(Canvas, rect, 5f, new SKColor(ToByte(color.R), ToByte(color.G), ToByte(color.B)));
-        StrokeRect(Canvas, rect.Deflate(0.5f), 5f, selected ? SKColors.White : Lerp(Theme.Border, Theme.BorderHover, hv));
+        StrokeRect(Canvas, rect.Deflate(0.5f), 5f, selected ? Theme.TextStrong : Lerp(Theme.Border, Theme.BorderHover, hv));
         if (selected) StrokeRect(Canvas, rect.Inflate(2f), 6f, Theme.Accent);
         return clicked;
     }

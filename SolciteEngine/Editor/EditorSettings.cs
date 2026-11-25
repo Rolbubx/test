@@ -14,6 +14,9 @@ public sealed class EditorSettings
     /// <summary>Recompile the scripts automatically when a file in Scripts/ is saved.</summary>
     public bool AutoCompile { get; set; } = true;
 
+    /// <summary>Use the light colour theme for the editor's interface.</summary>
+    public bool LightMode { get; set; }
+
     public bool SnapEnabled { get; set; }
     public float MoveSnap { get; set; } = 0.5f;
     public float RotateSnap { get; set; } = 15f;
