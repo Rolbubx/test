@@ -13,7 +13,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" || exit 0
 fi
 
 # Push new commits (also ones made earlier that were not pushed yet).
-if [ -n "$(git log --oneline @{u}..HEAD 2>/dev/null)" ]; then
-    GIT_TERMINAL_PROMPT=0 git push -q 2>&1 | tail -3
+# Rule (CLAUDE.md): always push to main, never force.
+git fetch -q origin main 2>/dev/null
+if [ -n "$(git log --oneline origin/main..HEAD 2>/dev/null)" ]; then
+    GIT_TERMINAL_PROMPT=0 git push -q origin HEAD:main 2>&1 | tail -3
 fi
 exit 0
