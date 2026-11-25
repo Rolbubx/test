@@ -158,7 +158,7 @@ public sealed class Window : GameWindow
             Project ??= ProjectPaths.Locate();
             if (Project != null)
             {
-                ModelCache.ProjectRoot = Project.IsEngineSandbox ? null : Project.Root;
+                ModelCache.ProjectRoot = Project.Root;
                 RecentProjects.Add(Project);
                 Title = $"SolciteEngine Editor - {Project.Name}";
             }

@@ -32,6 +32,16 @@ jobs:
       - name: Build
         run: dotnet build SolciteEngine/SolciteEngine.csproj -c ${{ matrix.configuration }} --no-restore -warnaserror:CS8602,CS8604
 
+      - name: The editor ships no game
+        if: matrix.configuration == 'Editor'
+        shell: bash
+        run: |
+          out=SolciteEngine/bin/Editor/net8.0
+          if [ -e "$out/Assets/Game" ] || grep -aq GameGenerator "$out/SolciteEngine.dll"; then
+            echo "::error::The Editor build contains a game (Assets/Game or GameGenerator). No game may ship inside the editor."
+            exit 1
+          fi
+
   generated-game:
     name: Generated game builds
     runs-on: ubuntu-latest

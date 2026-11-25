@@ -100,4 +100,13 @@
         <None Include="Generated\GeneratedGame\Assets\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="Assets\Game\%(RecursiveDir)%(Filename)%(Extension)" />
     </ItemGroup>
 
+
+    <!-- The editor ships no game: the generated game (Game.cs and its Assets/Game) stays out of it. The editor opens a
+         project's saved game by compiling it in memory (ProjectLoader), so nothing of any game is built into the editor. -->
+    <ItemGroup Condition="'$(Configuration)' == 'Editor'">
+        <Compile Remove="Generated\GeneratedGame\**" />
+        <None Remove="Generated\GeneratedGame\**" />
+    </ItemGroup>
+    <!-- (kept last: a Remove only affects the items declared above it) -->
+
 </Project>

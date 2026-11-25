@@ -1,6 +1,8 @@
 ﻿using SolciteEngine.Core;
 using SolciteEngine.Effects;
-using SolciteEngine.Generated;
+#if !EDITOR
+using SolciteEngine.Generated;   // the compiled-in game: the Editor build ships none (it opens projects through ProjectLoader)
+#endif
 using SolciteEngine.UI;
 using SolciteEngine.Utils;
 using OpenTK.Mathematics;
@@ -120,6 +122,14 @@ window.Initialize = w =>
 #endif
 
     // "--generated": the game the editor wrote with Compile (Generated/GeneratedGame) instead of the demo scene.
+#if EDITOR
+    // The Editor build has no game inside: the sandbox's saved game is compiled in memory like any project's.
+    if (generated && w.Project != null && SolciteEngine.Editor.ProjectLoader.TryBuild(w, w.Project))
+    {
+        if (startScene != null) w.Scenes.LoadNow(startScene);
+        return;
+    }
+#else
     if (generated && GameGenerator.IsGenerated)
     {
         Log.Info("Building the game from Generated/GeneratedGame.");
@@ -127,6 +137,7 @@ window.Initialize = w =>
         if (startScene != null) w.Scenes.LoadNow(startScene);
         return;
     }
+#endif
 
     // The editor and the game both start from the demo scene.
     BuildDemoScene(w);

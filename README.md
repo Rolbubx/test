@@ -722,3 +722,8 @@ GitHub Actions (`.github/workflows/`):
 - **Release** (`release.yml`): pushing a tag like `v1.0.0` publishes the editor and the game (trimmed ReadyToRun, no .NET
   needed) for `win-x64` and `linux-x64`, and attaches the zips to a GitHub release. It can also be started by hand
   (Actions tab) to get the zips as workflow artifacts without a release.
+
+**The editor ships no game.** The `Editor` build leaves the generated game (`Generated/GeneratedGame`, its `Game.cs` and
+`Assets/Game`) out of the program: it opens a project's saved game by compiling it in memory. CI and the release workflow
+fail if the editor build or package contains a game (`Assets/Game` or `GameGenerator`). Games are shipped by the `Game`
+configuration or by `Generated/GeneratedGame`, never by the editor.

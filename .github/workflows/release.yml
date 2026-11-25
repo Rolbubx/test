@@ -32,6 +32,14 @@ jobs:
       - name: Publish the editor
         run: dotnet publish SolciteEngine/SolciteEngine.csproj -c Editor -r ${{ matrix.rid }} --self-contained false -o out/editor
 
+      - name: Check that the editor ships no game
+        shell: bash
+        run: |
+          if [ -e out/editor/Assets/Game ] || grep -aq GameGenerator out/editor/SolciteEngine.dll; then
+            echo "::error::The editor package contains a game. No game may ship inside the editor."
+            exit 1
+          fi
+
       # The game: a trimmed ReadyToRun build that runs without .NET installed (no C++ tools needed, unlike Native AOT).
       - name: Publish the game
         run: dotnet publish SolciteEngine/SolciteEngine.csproj -c Game -r ${{ matrix.rid }} -p:GameAot=false -o out/game
