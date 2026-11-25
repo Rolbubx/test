@@ -83,6 +83,21 @@ opens the version control panel: start a repository (`cache/` and the build fold
 a message, set the GitHub remote URL, then pull and push. It needs `git` on the PATH, and git signed in to GitHub
 (credential manager or SSH key). Press **Compile** before committing: the map is saved only by Compile.
 
+### MCP server (drive the editor from an AI client)
+
+Start the editor with `--mcp [port]` (default `8765`) and it serves five tools over MCP (JSON-RPC over HTTP, localhost only,
+`http://127.0.0.1:8765/mcp`). The calls run on the editor's thread, on the open scene:
+
+| Tool | Arguments | What it does |
+|---|---|---|
+| `execute_script` | `content` | Compiles a C# snippet (method body, `scene` and `print(...)` in scope) and runs it |
+| `create_object` | `type`, `name`, `properties` | Adds a Cube/Sphere/Plane/Cylinder/Cone/Capsule/Torus, PointLight or SpotLight; `properties` sets `position`, `rotation` (degrees), `scale`, `color` and any other public property |
+| `delete_object` | `name` | Deletes an object (or light, sound) by name or `Parent/Child` path |
+| `get_tree` | | The scene as JSON: objects, transforms, scripts, lights, available script types |
+| `attach_component` | `type`, `path`, `where` | Attaches a script class (or a PointLight/SpotLight) to the object at `path`; `where` is `self` (default) or `children` |
+
+Claude Code: `claude mcp add --transport http solcite http://127.0.0.1:8765/mcp`.
+
 ### Screenshots of editor menus
 
 `--menu <projects|vcs|settings>` opens that toolbar menu at start; it works with `--frames` and `--screenshot`, e.g.
@@ -124,6 +139,7 @@ SolciteEngine/publish-game.ps1 -NoAot     # Windows: trimmed ReadyToRun single-f
 |---|---|
 | `--editor` / `--game` | force editor or game mode |
 | `--project <folder>` | open a project without the launcher |
+| `--mcp [port]` | editor: serve the MCP tools on `http://127.0.0.1:<port>/mcp` (default 8765) |
 | `--sandbox` | open the engine's own folder as a project |
 | `--setup` | run the first-launch setup again |
 | `--launcher` | show the launcher even with `--frames` |

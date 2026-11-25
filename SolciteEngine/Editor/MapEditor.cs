@@ -492,6 +492,8 @@ public sealed partial class MapEditor : IDisposable
 
     public void Update(float deltaTime)
     {
+        _mcp?.Pump();
+
         bool captured = _window.CursorState == CursorState.Grabbed;
         bool leftDown = _window.MouseState.IsButtonDown(MouseButton.Left);
         bool overUi = G.IsPointOverUi(_window.MousePosition) || !_window.Viewport.Contains(_window.MousePosition);
@@ -908,6 +910,7 @@ public sealed partial class MapEditor : IDisposable
     public void Dispose()
     {
         Settings.Save(Paths);
+        _mcp?.Dispose();
         Scripts.Dispose();
         // The open scene is disposed by the window, the others here. Gizmo, markers and ring are objects of the open scene.
         foreach (var scene in _scenes)

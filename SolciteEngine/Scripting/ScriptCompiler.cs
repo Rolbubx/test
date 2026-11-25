@@ -24,12 +24,16 @@ public sealed class ScriptCompiler
     private int _generation;
 
     /// <summary>Compiles the given source files into one assembly.</summary>
-    public ScriptCompileResult Compile(IEnumerable<string> files)
+    public ScriptCompileResult Compile(IEnumerable<string> files) =>
+        Compile(files.Select(f => (Name: f, Text: File.ReadAllText(f))));
+
+    /// <summary>Compiles in-memory sources (name, text) into one assembly, like <see cref="Compile(IEnumerable{string})"/>.</summary>
+    public ScriptCompileResult Compile(IEnumerable<(string Name, string Text)> sources)
     {
         var watch = Stopwatch.StartNew();
         var trees = new List<SyntaxTree> { CSharpSyntaxTree.ParseText(ImplicitUsings, path: "<implicit usings>") };
-        foreach (var file in files)
-            trees.Add(CSharpSyntaxTree.ParseText(File.ReadAllText(file), path: file));
+        foreach (var (name, text) in sources)
+            trees.Add(CSharpSyntaxTree.ParseText(text, path: name));
 
         var compilation = CSharpCompilation.Create(
             $"SolciteEngine.Scripts.{++_generation}",

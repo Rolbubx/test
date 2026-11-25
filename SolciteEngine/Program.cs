@@ -40,6 +40,7 @@ bool noSky = false, noShadow = false, noReflect = false, generated = false, expo
 generated = true;   // the shipped game is the one the editor compiled (the demo scene is only a fallback)
 _ = exportDemo;     // "--export-demo" needs the editor, which the Game build leaves out
 #endif
+int mcpPort = 0;   // --mcp [port]: the editor serves its MCP tools on this port (0 = off)
 string? startMenu = null, screenshot = null, startScene = null, projectFolder = null;
 bool sandbox = false, forceLauncher = false, forceSetup = false, update = false, checkUpdate = false;
 float[]? cameraView = null;
@@ -69,6 +70,8 @@ for (int i = 1; i < argv.Length; i++)
         startMenu = argv[i + 1].Trim().TrimStart('-').ToLowerInvariant();
         if (!new[] { "projects", "vcs", "settings" }.Contains(startMenu)) { Log.Warn($"Unknown menu '{startMenu}'. Menus: projects, vcs, settings."); startMenu = null; }
     }
+    if (argv[i] == "--mcp")   // the editor: MCP server on http://127.0.0.1:<port>/mcp (default 8765)
+        mcpPort = i + 1 < argv.Length && int.TryParse(argv[i + 1], out int port) ? port : 8765;
     if (argv[i] == "--launcher") forceLauncher = true;   // show the project launcher even with --frames (screenshot tests)
     if (argv[i] == "--setup") forceSetup = true;   // the editor: run the first-launch setup again (checks, shader cache)
     if (argv[i] == "--update") update = true;   // check GitHub for a newer release, install it and restart
@@ -97,7 +100,7 @@ if (IsEditor && projectFolder != null)
 #endif
 
 
-using var window = new Window(IsEditor ? "SolciteEngine Editor" : "SolciteEngine", 1280, 720, maxFrames) { IsEditor = IsEditor, UncappedFps = noVsync, ScreenshotPath = screenshot, StartMenu = startMenu };
+using var window = new Window(IsEditor ? "SolciteEngine Editor" : "SolciteEngine", 1280, 720, maxFrames) { IsEditor = IsEditor, UncappedFps = noVsync, ScreenshotPath = screenshot, StartMenu = startMenu, McpPort = mcpPort };
 #if !GAME
 window.ShowLauncher = showLauncher;
 window.RunSetup = IsEditor && (maxFrames == 0 || forceSetup) && !exportDemo;   // smoke tests skip it unless --setup is given

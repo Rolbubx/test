@@ -27,6 +27,9 @@ public sealed class Window : GameWindow
     /// <summary>Command line "--menu name": the editor opens that toolbar menu (projects, vcs, settings) on its first frame.</summary>
     public string? StartMenu { get; set; }
 
+    /// <summary>The editor serves its MCP tools on this port (0 = not at all). Set by <c>--mcp</c>.</summary>
+    public int McpPort { get; set; }
+
     /// <summary>Command line "--novsync": measure raw speed instead of the 60 fps cap.</summary>
     public bool UncappedFps { get; set; }
     private int _frameCount;
@@ -204,7 +207,11 @@ public sealed class Window : GameWindow
 #endif
         Initialize?.Invoke(this);
 #if !GAME
-        if (IsEditor) Editor = new MapEditor(this, Project);
+        if (IsEditor)
+        {
+            Editor = new MapEditor(this, Project);
+            if (McpPort > 0) Editor.StartMcp(McpPort);
+        }
 #endif
     }
 
