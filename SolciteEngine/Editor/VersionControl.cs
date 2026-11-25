@@ -42,8 +42,8 @@ public sealed class VersionControl
                  && Directory.Exists(Path.Combine(_root, ".git"));
         if (!IsRepo) { Branch = Remote = ""; Changes = Ahead = Behind = 0; return; }
 
-        Branch = Run("rev-parse", "--abbrev-ref", "HEAD").Output.Trim();
-        if (Branch == "HEAD") Branch = Run("symbolic-ref", "--short", "HEAD").Output.Trim();   // no commit yet
+        // symbolic-ref also works before the first commit; it fails (detached HEAD) without a branch name.
+        Branch = Run("symbolic-ref", "--short", "HEAD") is { Code: 0 } branch ? branch.Output.Trim() : "(detached)";
         Remote = Run("remote", "get-url", "origin") is { Code: 0 } r ? r.Output.Trim() : "";
         Changes = Run("status", "--porcelain").Output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
 
