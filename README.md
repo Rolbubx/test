@@ -85,7 +85,7 @@ a message, set the GitHub remote URL, then pull and push. It needs `git` on the 
 
 ### MCP server (drive the editor from an AI client)
 
-Start the editor with `--mcp [port]` (default `8765`) and it serves five tools over MCP (JSON-RPC over HTTP, localhost only,
+Start the editor with `--mcp [port]` (default `8765`) and it serves seven tools over MCP (JSON-RPC over HTTP, localhost only,
 `http://127.0.0.1:8765/mcp`). The calls run on the editor's thread, on the open scene:
 
 | Tool | Arguments | What it does |
@@ -95,6 +95,8 @@ Start the editor with `--mcp [port]` (default `8765`) and it serves five tools o
 | `delete_object` | `name` | Deletes an object (or light, sound) by name or `Parent/Child` path |
 | `get_tree` | | The scene as JSON: objects, transforms, scripts, lights, available script types |
 | `attach_component` | `type`, `path`, `where` | Attaches a script class (or a PointLight/SpotLight) to the object at `path`; `where` is `self` (default) or `children` |
+| `create_script` | `content`, `name` | Writes `Scripts/<name>.cs` in the project and compiles the scripts (errors are returned) |
+| `compile_game` | | Same as the Compile button: scripts, then the game into `generated-game/` |
 
 Claude Code: `claude mcp add --transport http solcite http://127.0.0.1:8765/mcp`.
 

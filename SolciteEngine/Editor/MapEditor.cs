@@ -253,6 +253,7 @@ public sealed partial class MapEditor : IDisposable
     private void Say(string text, bool error = false)
     {
         _output.Add((text, error));
+        _capture?.Add((error ? "ERROR: " : "") + text);
         if (_output.Count > 200) _output.RemoveAt(0);
         _scrollOutput = true;
         if (error) Log.Warn(text); else Log.Info(text);

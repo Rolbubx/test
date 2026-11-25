@@ -16,6 +16,8 @@ public sealed partial class MapEditor
     private McpServer? _mcp;
     private readonly ScriptCompiler _mcpCompiler = new();   // its own compiler: the project's scripts keep theirs
 
+    private List<string>? _capture;   // while set, Say() also lands here (what a tool reports back)
+
     private static readonly string[] ShapeNames = { "Cube", "Sphere", "Plane", "Cylinder", "Cone", "Capsule", "Torus" };
 
     /// <summary>Starts the MCP server on <paramref name="port"/> (see <c>--mcp</c>).</summary>
@@ -51,6 +53,21 @@ public sealed partial class MapEditor
             "Returns what was printed plus the returned value, or the compiler errors.",
             Schema(new JsonObject { ["content"] = Str("C# statements, e.g. `scene.Find(\"Cube\").Y = 2; return scene.Roots.Count;`") }, "content"),
             ExecuteScript);
+
+        yield return new McpTool("create_script",
+            "Writes Scripts/<name>.cs in the project and compiles the scripts. content is a C# class deriving from Script " +
+            "(overwrites an existing file of that name). The class can then be used with attach_component. Returns compiler errors if any.",
+            Schema(new JsonObject
+            {
+                ["name"] = Str("File / script name, a C# identifier such as \"Spin\""),
+                ["content"] = Str("C# source, e.g. `public class Spin : Script { public override void OnUpdate(float dt) => Self.RotateY(45f * dt); }`"),
+            }, "content", "name"),
+            CreateScript);
+
+        yield return new McpTool("compile_game",
+            "Does what the Compile button does: compiles the scripts, then writes the whole game (every scene) into the project's generated-game folder. Returns the editor's report.",
+            Schema(new JsonObject()),
+            _ => CompileGame());
 
         yield return new McpTool("create_object",
             $"Adds an object to the open scene. type: {string.Join(", ", ShapeNames)}, PointLight or SpotLight.",
@@ -91,6 +108,39 @@ public sealed partial class MapEditor
                 },
             }, "type", "path"),
             AttachComponent);
+    }
+
+    // ---- compile_game / create_script ------------------------------------------------------------
+
+    /// <summary>Runs an editor action and returns what it said, failing if it reported an error.</summary>
+    private string Captured(Action action)
+    {
+        var lines = _capture = new List<string>();
+        try { action(); }
+        finally { _capture = null; }
+        string text = string.Join("\n", lines);
+        if (lines.Any(l => l.StartsWith("ERROR: "))) throw new InvalidOperationException(text);
+        return text.Length > 0 ? text : "OK";
+    }
+
+    private string CompileGame() => Captured(Compile);
+
+    private string CreateScript(JsonElement args)
+    {
+        string name = Arg(args, "name");
+        string content = Arg(args, "content");
+        if (Paths == null) throw new InvalidOperationException("No project is open.");
+        if (Playing) throw new InvalidOperationException("Stop playing before changing scripts.");
+        if (name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) name = name[..^3];
+        if (!System.Text.RegularExpressions.Regex.IsMatch(name, @"^[A-Za-z_][A-Za-z0-9_]*$"))
+            throw new ArgumentException("name must be a C# identifier (letters, digits, underscore), e.g. \"Spin\".");
+
+        Directory.CreateDirectory(Paths.Scripts);
+        string file = Path.Combine(Paths.Scripts, name + ".cs");
+        bool existed = File.Exists(file);
+        File.WriteAllText(file, content);
+        string report = Captured(() => CompileScripts(announceSuccess: true));
+        return $"{(existed ? "Overwrote" : "Created")} {name}.cs. {report}";
     }
 
     // ---- execute_script --------------------------------------------------------------------------
