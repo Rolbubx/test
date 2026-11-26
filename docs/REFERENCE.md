@@ -148,6 +148,9 @@ card.Add(new ImageButton("Assets/UI/home.png") { Anchor = UiAnchor.BottomRight, 
 Game.Ui.Find<TextLabel>("Title")!.Text = "You win!";   // Find<T> returns the element as its class
 ```
 
+The game's UI is written in **Liberation Sans**, the default font of Unity's TextMeshPro (LiberationSans SDF), shipped in
+`Assets/Fonts` (SIL Open Font License); the editor's own interface keeps Inter. `Bold = true` uses Liberation Sans Bold.
+
 The editor's UI tab adds the same elements (ImageButton and Shape buttons included) and has a **Props** section to add or
 remove a CornerProp and a GradientProp on the selected element; Compile writes them into the generated game.
 

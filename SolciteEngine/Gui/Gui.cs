@@ -138,7 +138,19 @@ public sealed partial class Gui : IDisposable
     }
 
     public Theme Theme { get; }
-    public UiFonts Fonts { get; }
+    /// <summary>The fonts text is drawn with right now (the editor's; <see cref="UseFonts"/> switches them).</summary>
+    public UiFonts Fonts { get; private set; }
+
+    /// <summary>The fonts of the game's UI (TextMeshPro's Liberation Sans), or null to draw it with <see cref="Fonts"/>.</summary>
+    public UiFonts? GameFonts { get; set; }
+
+    /// <summary>Draws the following text with <paramref name="fonts"/> and returns the fonts used before, to switch back.</summary>
+    public UiFonts UseFonts(UiFonts fonts)
+    {
+        var previous = Fonts;
+        Fonts = fonts;
+        return previous;
+    }
     public GuiInput Input { get; private set; } = new();
 
     /// <summary>The size of the UI area in UI points.</summary>

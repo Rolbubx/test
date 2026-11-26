@@ -12,26 +12,34 @@ public enum FontWeight
 }
 
 /// <summary>
-/// The UI's real fonts: Inter (Regular, Medium, SemiBold, Bold), the same typeface as the Unity editor's interface,
-/// loaded from <c>Assets/Fonts</c> (SIL Open Font License). If a file is missing the system font is used. Change
-/// <see cref="Family"/> to "JetBrainsMono" for the monospaced font that is also bundled, or put your own
-/// <c>&lt;Family&gt;-Regular.ttf</c> (or .otf) files there.
+/// The UI's real fonts, loaded from <c>Assets/Fonts</c> (all SIL Open Font License): the editor uses Inter
+/// (<see cref="Family"/>), the same typeface as the Unity editor's interface; the game's UI uses Liberation Sans
+/// (<see cref="GameFamily"/>), the font of Unity's TextMeshPro (LiberationSans SDF). JetBrainsMono is bundled too.
+/// A weight without its own file uses the closest one (Medium → Regular, SemiBold → Bold); if Regular is missing the
+/// system font is used. Put your own <c>&lt;Family&gt;-Regular.ttf</c> (or .otf) files there to use another family.
 /// </summary>
 public sealed class UiFonts : IDisposable
 {
     /// <summary>The font family: files named &lt;Family&gt;-&lt;Weight&gt;.ttf or .otf in Assets/Fonts.</summary>
     public const string Family = "Inter";
 
+    /// <summary>The font family of the game's UI (<c>UiCanvas</c>): Liberation Sans, TextMeshPro's default font.</summary>
+    public const string GameFamily = "LiberationSans";
+
     private readonly Dictionary<FontWeight, SKTypeface> _faces = new();
     private readonly Dictionary<(int size, FontWeight weight), SKFont> _fonts = new();
 
-    public UiFonts(string directory)
+    public UiFonts(string directory, string family = Family)
     {
-        _faces[FontWeight.Regular] = Load(directory, $"{Family}-Regular", null);
-        _faces[FontWeight.Medium] = Load(directory, $"{Family}-Medium", _faces[FontWeight.Regular]);
-        _faces[FontWeight.SemiBold] = Load(directory, $"{Family}-SemiBold", _faces[FontWeight.Regular]);
-        _faces[FontWeight.Bold] = Load(directory, $"{Family}-Bold", _faces[FontWeight.SemiBold]);
+        FamilyName = family;
+        _faces[FontWeight.Regular] = Load(directory, $"{family}-Regular", null);
+        _faces[FontWeight.Bold] = Load(directory, $"{family}-Bold", _faces[FontWeight.Regular]);
+        _faces[FontWeight.Medium] = Load(directory, $"{family}-Medium", _faces[FontWeight.Regular]);
+        _faces[FontWeight.SemiBold] = Load(directory, $"{family}-SemiBold", _faces[FontWeight.Bold]);
     }
+
+    /// <summary>The family these fonts were loaded from ("Inter", "LiberationSans"...).</summary>
+    public string FamilyName { get; }
 
     private static SKTypeface Load(string directory, string name, SKTypeface? fallback)
     {
@@ -42,10 +50,11 @@ public sealed class UiFonts : IDisposable
             var face = SKTypeface.FromFile(path);
             if (face != null) return face;
         }
-        string file = name + ".ttf";
+        if (fallback != null) return fallback; // a weight the family does not have: the closest one
 
+        string file = name + ".ttf";
         Log.Warn($"UI font '{file}' not found in '{directory}'; using the system font.");
-        return fallback ?? SKTypeface.FromFamilyName("Segoe UI") ?? SKTypeface.Default;
+        return SKTypeface.FromFamilyName("Segoe UI") ?? SKTypeface.Default;
     }
 
     /// <summary>A font of the given size (in UI points) and weight, cached.</summary>

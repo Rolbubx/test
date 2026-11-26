@@ -15,6 +15,7 @@ public sealed class UiHost : IDisposable
     private readonly GameWindow _window;
     private readonly UiSurface _surface;
     private readonly UiFonts _fonts;
+    private readonly UiFonts _gameFonts;
     private readonly GuiInput _input = new();
     private bool _inFrame;
 
@@ -24,7 +25,8 @@ public sealed class UiHost : IDisposable
         string baseDir = AppContext.BaseDirectory;
         _fonts = new UiFonts(Path.Combine(baseDir, "Assets", "Fonts"));
         _surface = new UiSurface(Path.Combine(baseDir, "Shaders"));
-        Gui = new Gui(_fonts);
+        _gameFonts = new UiFonts(Path.Combine(baseDir, "Assets", "Fonts"), UiFonts.GameFamily);
+        Gui = new Gui(_fonts) { GameFonts = _gameFonts };
 
         _input.GetClipboard = () => _window.ClipboardString ?? "";
         _input.SetClipboard = text => _window.ClipboardString = text;
@@ -114,5 +116,6 @@ public sealed class UiHost : IDisposable
         Gui.Dispose();
         _surface.Dispose();
         _fonts.Dispose();
+        _gameFonts.Dispose();
     }
 }

@@ -168,11 +168,20 @@ public sealed class UiCanvas : IDisposable
     public void Draw(Gui.Gui g, UiRect screen, bool interactive)
     {
         const WindowFlags flags = WindowFlags.Fixed | WindowFlags.NoBackground | WindowFlags.NoScroll | WindowFlags.ClickThrough;
-        if (g.Begin("##gameui", screen, flags))
+        // the game's UI is written in Liberation Sans, the default font of Unity's TextMeshPro (the editor keeps Inter)
+        var editorFonts = g.GameFonts != null ? g.UseFonts(g.GameFonts) : null;
+        try
         {
-            foreach (var root in _roots.ToArray()) DrawElement(g, root, screen, interactive);
+            if (g.Begin("##gameui", screen, flags))
+            {
+                foreach (var root in _roots.ToArray()) DrawElement(g, root, screen, interactive);
+            }
+            g.End();
         }
-        g.End();
+        finally
+        {
+            if (editorFonts != null) g.UseFonts(editorFonts);
+        }
     }
 
     private void DrawElement(Gui.Gui g, UiElement e, UiRect parent, bool interactive)
