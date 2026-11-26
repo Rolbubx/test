@@ -77,7 +77,7 @@ public sealed class GameExporter
 
             var uiContext = new ExportContext(_scenes[0], _paths, _ui, assets, warnings);
             files.Add((UiExporter.FileName, UiExporter.Write(uiContext)));
-            files.Insert(0, ("GameGenerator.cs", WriteEntryPoint(registered)));
+            files.Insert(0, ("GameGenerator.cs", WriteEntryPoint(registered, _paths.Name)));
 
             var utf8 = new UTF8Encoding(false);
             File.WriteAllText(Path.Combine(staging, "Game.cs"), Merge(files.Select(f => f.text)), utf8);
@@ -324,7 +324,7 @@ public sealed class GameExporter
         return w.ToString();
     }
 
-    private static string WriteEntryPoint(IReadOnlyList<(string name, string ns)> scenes)
+    private static string WriteEntryPoint(IReadOnlyList<(string name, string ns)> scenes, string gameName)
     {
         var w = new CodeWriter("The entry point of the generated game: the game UI, then every scene, starting with the first.");
         w.Line("/// <summary>");
@@ -339,6 +339,7 @@ public sealed class GameExporter
         w.Line($"public static readonly string[] SceneNames = {{ {string.Join(", ", scenes.Select(s => Str(s.name)))} }};");
         w.Line();
         w.Open("public static void Build(Window window)");
+        w.Line($"global::SolciteEngine.Player.Data.SaveData.GameName = {Str(gameName)};   // DataSave/DataLoad use this game's save folder");
         w.Line("UiGenerator.Build(window.GameUi);");
         foreach (var (name, ns) in scenes)
             w.Line($"window.Scenes.Register({Str(name)}, global::{ns}.SceneGenerator.Build);");

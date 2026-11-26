@@ -202,6 +202,7 @@ public sealed class Window : GameWindow
                 ModelCache.ProjectGameAssets = Path.Combine(Project.GeneratedGame, "Assets");
                 RecentProjects.Add(Project);
                 Title = $"SolciteEngine Editor - {Project.Name}";
+                SolciteEngine.Player.Data.SaveData.GameName = Project.Name;   // the editor and the compiled game share their saves
             }
         }
 #endif

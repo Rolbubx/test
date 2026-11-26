@@ -25,7 +25,7 @@ public sealed class ApiReference
     {
         typeof(Script), typeof(Game), typeof(GameObject), typeof(Scene), typeof(GameTimer), typeof(RaycastHit),
         typeof(Sound), typeof(Rain), typeof(Sun), typeof(PointLight), typeof(CloudLayer), typeof(Camera), typeof(Water),
-        typeof(Material), typeof(UiCanvas), typeof(UiElement),
+        typeof(Material), typeof(UiCanvas), typeof(UiElement), typeof(SolciteEngine.Player.Data.SaveData),
     };
 
     private readonly List<ApiType> _types = new();

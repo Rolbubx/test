@@ -26,6 +26,7 @@ SolciteEngine/
   Effects/              BloomEffect, DepthOfFieldEffect, SunRaysEffect, VignetteEffect, ChromaticAberrationEffect,
                         FilmGrainEffect, ColorGradingEffect, ColorCorrectionEffect
   Scripting/            Script (base class), Game (the API for scripts), ScriptCompiler (Roslyn, editor only)
+  Player/Data/          SaveData: game saves (DataSave, DataLoad, DataUpdate, DataDelete), one JSON file per save
   Editor/               the map editor, project launcher and loader, exporter (Compile), importers, gizmos
   Gui/                  the immediate-mode UI toolkit (SkiaSharp)
   UI/                   debug panels, parameter editor, the game's own UI (HUD, menus)
@@ -210,6 +211,7 @@ Hooks: `OnStart`, `OnUpdate(dt)`, `OnLateUpdate(dt)` (after every object updated
 - **World**: `StartRain`, `StopRain`, `Rain`, `Sun`, `SetTimeOfDay`, `Fog`, `AddLight(position, color, intensity, range)`,
   `RemoveLight`, `PlaySound`, `FindSound`, `Ui`, `Camera`, `Scene`.
 - **Other**: `Random(min, max)`, `Chance(p)`, `RandomPointAround(center, radius)`, `Log(text)`.
+- **Saves** (on the script itself, see [Game saves](#game-saves-solciteengineplayerdata)): `DataSave`, `DataLoad`, `DataUpdate`, `DataDelete`, `DataExists`, `DataList`.
 
 ```csharp
 public class Spawner : Script
@@ -238,6 +240,69 @@ included (`Spin`, `PlayerController`, `GameCamera`). In the editor scripts are c
 (`Microsoft.CodeAnalysis.CSharp`; only the editor uses it) when you press Compile or save a script file, and the new version replaces the old one on every object, keeping its settings. The game build compiles the
 same files normally. Scripts only run while the editor is playing (always in the game). A script that throws is
 disabled and the error is logged.
+
+## Game saves (`SolciteEngine.Player.Data`)
+
+Scripts save and load the player's progress with a few functions they can call directly (they are members of
+`Script`; any other class calls them on `SaveData`, e.g. `SaveData.DataSave(data, "slot1")`). `_Usings.cs` of new
+projects already has `global using SolciteEngine.Player.Data;`; in an older project add `using SolciteEngine.Player.Data;`
+at the top of a script to use `SaveData`, `SaveDataException` or `[SaveIgnore]`.
+
+| Call | What it does |
+|---|---|
+| `DataSave(data, name)` | Saves `data` under `name`. **A save with that name is replaced** (saving over a slot is the normal case). |
+| `DataUpdate(name, data)` | Replaces the existing save `name`. Throws a `SaveDataException` if there is none (catches typos in slot names). |
+| `DataDelete(name)` | Deletes the save; returns `false` if there was none (not an error). |
+| `DataLoad<T>(name)` | Reads the save back as a `T`. Throws a `SaveDataException` if there is none. |
+| `DataLoad(name, defaultValue)` | Same, but returns `defaultValue` when there is no save (first launch). |
+| `DataExists(name)`, `DataList()` | Is there a save with that name / every save name, most recent first. `SaveData.DataSavedAt(name)` gives its date. |
+
+```csharp
+public class Progress
+{
+    public int Level = 1;
+    public Vector3 Position;
+    public List<string> Items = new();           // give collections a starting value
+    public Dictionary<string, int> Coins = new();
+    [SaveIgnore] public float Timer;              // not saved
+}
+
+public class SaveSystem : Script
+{
+    public override void OnStart()
+    {
+        var p = DataLoad("slot1", new Progress());   // a new Progress on the first launch
+        Self.Position = p.Position;
+    }
+
+    public override void OnKeyDown(Keys key, Vector3 mouseWorld, Vector3 cameraPosition)
+    {
+        if (key == Keys.F5) DataSave(new Progress { Level = 2, Position = Self.Position }, "slot1");
+        if (key == Keys.F9 && DataExists("slot1")) Self.Position = DataLoad<Progress>("slot1").Position;
+        if (key == Keys.Delete) DataDelete("slot1");
+    }
+}
+```
+
+**What can be saved**: your own classes and structs (their public fields and public get/set properties), numbers,
+`string`, `bool`, `char`, enums, `DateTime`, `TimeSpan`, `Guid`, nullable values, `Vector2/3/4`, `Vector2i/3i/4i`,
+`Quaternion`, `Color4`, arrays, `List<T>` and `Dictionary<K, V>` (string, number or enum keys). Engine objects
+(`GameObject`, `Script`, `Sound`...) are refused with a clear message: save their `Position`, `Name` or whatever you
+need and rebuild them when you load. A field added to your class after a save was written simply keeps its default
+value when that older save is loaded; fields that no longer exist are ignored.
+
+In the compiled (Native AOT) game, give collection fields a starting value (`= new()`) and avoid a collection inside
+another collection (`Dictionary<string, List<int>>`): the game cannot build those from nothing and `DataLoad` says so.
+Lists of your own classes/structs and arrays work everywhere.
+
+**Where**: one readable JSON file per save, `<name>.save.json`, in `%LocalAppData%/SolciteEngine/Saves/<game>/`
+(Windows) or `~/.local/share/SolciteEngine/Saves/<game>/` (Linux). `<game>` is the project's name: the editor and
+the compiled game share their saves, and saves made while playing in the editor are real files that stay after you
+stop. Any name works (`"Partie 1"`, `"été"`, `"a/b"`: unusual characters are escaped in the file name). Set
+`SaveData.Folder` to use another folder. Files are written to a temporary file first, so a crash never leaves a
+half-written save. A failure (disk full, damaged file, save of another type) is a `SaveDataException` whose message
+names the save and the reason; like any exception in a script it disables the script and is logged, so wrap the call
+in `try`/`catch (SaveDataException e)` to handle it yourself.
 
 ## Custom shaders (the SolciteEngine shader language)
 

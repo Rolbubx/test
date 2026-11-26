@@ -1,6 +1,7 @@
 using OpenTK.Mathematics;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using SolciteEngine.Core;
+using SolciteEngine.Player.Data;
 
 namespace SolciteEngine.Scripting;
 
@@ -29,6 +30,29 @@ public abstract class Script
     public Game Game => Self.Scene?.Game ?? throw new InvalidOperationException("The script's object is not in a running scene.");
 
     public Scene Scene => Self.Scene ?? throw new InvalidOperationException("The script's object is not in a scene.");
+
+    // ---- game saves (SolciteEngine.Player.Data.SaveData) -------------------------------------------
+
+    /// <summary>Saves <paramref name="data"/> (your own class, a number, a list...) under <paramref name="name"/>, replacing a save of that name.</summary>
+    protected static void DataSave<T>(T data, string name) => SaveData.DataSave(data, name);
+
+    /// <summary>Replaces the existing save <paramref name="name"/>. Throws a <see cref="SaveDataException"/> if there is none.</summary>
+    protected static void DataUpdate<T>(string name, T data) => SaveData.DataUpdate(name, data);
+
+    /// <summary>Deletes the save <paramref name="name"/>; false if there was none.</summary>
+    protected static bool DataDelete(string name) => SaveData.DataDelete(name);
+
+    /// <summary>Reads the save <paramref name="name"/>. Throws a <see cref="SaveDataException"/> if there is none.</summary>
+    protected static T DataLoad<T>(string name) => SaveData.DataLoad<T>(name);
+
+    /// <summary>Reads the save <paramref name="name"/>, or <paramref name="defaultValue"/> if there is none.</summary>
+    protected static T DataLoad<T>(string name, T defaultValue) => SaveData.DataLoad(name, defaultValue);
+
+    /// <summary>True if there is a save named <paramref name="name"/>.</summary>
+    protected static bool DataExists(string name) => SaveData.DataExists(name);
+
+    /// <summary>The names of every save, most recent first.</summary>
+    protected static string[] DataList() => SaveData.DataList();
 
     /// <summary>A disabled script receives no callbacks.</summary>
     public bool Enabled { get; set; } = true;
