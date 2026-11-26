@@ -19,6 +19,8 @@ public sealed partial class MapEditor
         UiKind.Slider => IconKind.Slider,
         UiKind.Checkbox => IconKind.Checkbox,
         UiKind.TextBox => IconKind.TextBox,
+        UiKind.ImageButton => IconKind.ImageButton,
+        UiKind.Shape => IconKind.Shape,
         _ => IconKind.Image,
     };
 
@@ -140,7 +142,7 @@ public sealed partial class MapEditor
     private UiElement AddUiElement(UiKind kind)
     {
         var parent = SelectedUi is { Kind: UiKind.Panel } panel ? panel : SelectedUi?.Parent;
-        var element = new UiElement(kind);
+        var element = UiElement.Create(kind);
         element.Name = Ui.UniqueName(element.Name);
         if (parent == null) element.Anchor = UiAnchor.Center;
         else element.Offset = new Vector2(12f, 12f);
@@ -213,7 +215,7 @@ public sealed partial class MapEditor
         {
             if (kind != UiKinds[0]) g.SameLine();
             if (g.IconButton(IconFor(kind), "add" + kind, false, 34f)) AddUiElement(kind);
-            g.Tooltip("Add " + kind);
+            g.Tooltip("Add " + UiElement.Create(kind).GetType().Name);
         }
 
         g.Spacing(2f);
@@ -279,7 +281,7 @@ public sealed partial class MapEditor
         }
 
         g.Heading(e.Name);
-        g.TextDim(e.Kind.ToString());
+        g.TextDim(e.GetType().Name);
         g.Input("Name", e.Name, v => e.Name = v);
         g.Check("Visible", e.Visible, v => e.Visible = v);
         if (e.IsInteractive) g.Check("Enabled", e.Enabled, v => e.Enabled = v);
@@ -345,15 +347,72 @@ public sealed partial class MapEditor
                 g.Slider("Font size", e.FontSize, 8f, 64f, v => e.FontSize = v, "0");
                 break;
 
-            case UiKind.Image:
+            case UiKind.Image or UiKind.ImageButton:
                 g.SeparatorText("Image");
                 g.Input("File", e.ImagePath, v => e.ImagePath = v, "drop a .png / .jpg here");
                 g.Rgba("Tint", e.Tint, v => e.Tint = v);
+                g.Rgba("Background", e.Background, v => e.Background = v);
                 g.Slider("Corner radius", e.CornerRadius, 0f, 64f, v => e.CornerRadius = v, "0");
                 g.TextWrapped("Drop an image file onto the window to use it. It is copied into Assets/UI when you Compile.", dim: true);
+                if (e.Kind == UiKind.ImageButton)
+                {
+                    g.SeparatorText("Action");
+                    g.Input("On click", e.Action, v => e.Action = v, "quit, show:Name, hide:Name...");
+                }
+                break;
+
+            case UiKind.Shape:
+                g.SeparatorText("Shape");
+                g.Choose("Shape", e.Shape, v => e.Shape = v);
+                g.Rgba("Colour", e.Fill, v => e.Fill = v);
+                g.Slider(e.Shape == UiShape.Line ? "Thickness" : "Outline width", e.Thickness, 0.5f, 24f, v => e.Thickness = v, "0.0");
+                if (e.Shape == UiShape.Line)
+                {
+                    var start = e.LineStart;
+                    if (g.DragVector2("Start", ref start, 0.01f)) e.LineStart = start;
+                    var end = e.LineEnd;
+                    if (g.DragVector2("End", ref end, 0.01f)) e.LineEnd = end;
+                    g.TextWrapped("Start and End are fractions of the box: (0, 0) top-left, (1, 1) bottom-right.", dim: true);
+                }
+                else
+                {
+                    g.Check("Filled", e.Filled, v => e.Filled = v);
+                    if (e.Shape == UiShape.Rectangle) g.Slider("Corner radius", e.CornerRadius, 0f, 64f, v => e.CornerRadius = v, "0");
+                }
                 break;
         }
 
+        DrawUiProps(e);
+    }
+
+    /// <summary>The element's props (modifiers): rounded corners and gradient.</summary>
+    private void DrawUiProps(UiElement e)
+    {
+        var g = G;
+        g.SeparatorText("Props");
+
+        if (e.GetProp<CornerProp>() is { } corner)
+        {
+            g.TextDim("CornerProp");
+            g.Slider("Radius", corner.Radius, 0f, 96f, v => corner.Radius = v, "0");
+            if (g.Button("Remove CornerProp")) e.RemoveProp<CornerProp>();
+        }
+
+        if (e.GetProp<GradientProp>() is { } gradient)
+        {
+            g.TextDim("GradientProp");
+            g.Rgba("From", gradient.From, v => gradient.From = v);
+            g.Rgba("To", gradient.To, v => gradient.To = v);
+            g.Slider("Rotation", gradient.Rotation, -180f, 180f, v => gradient.Rotation = v, "0");
+            if (g.Button("Remove GradientProp")) e.RemoveProp<GradientProp>();
+        }
+
+        if (e.GetProp<CornerProp>() == null)
+        {
+            if (g.Button("+ CornerProp")) e.AddProp(new CornerProp(MathF.Max(8f, e.CornerRadius)));
+            if (e.GetProp<GradientProp>() == null) g.SameLine();
+        }
+        if (e.GetProp<GradientProp>() == null && g.Button("+ GradientProp")) e.AddProp(new GradientProp());
     }
 
     private void DrawBox(UiElement e)
@@ -390,7 +449,7 @@ public sealed partial class MapEditor
         string extension = Path.GetExtension(file).ToLowerInvariant();
         if (extension is not (".png" or ".jpg" or ".jpeg" or ".bmp" or ".webp" or ".gif")) return false;
 
-        var target = SelectedUi is { Kind: UiKind.Image } image ? image : AddUiElement(UiKind.Image);
+        var target = SelectedUi is { Kind: UiKind.Image or UiKind.ImageButton } image ? image : AddUiElement(UiKind.Image);
         target.ImagePath = file;
         Say($"UI image set to {Path.GetFileName(file)}.");
         return true;

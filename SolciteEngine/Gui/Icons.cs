@@ -7,6 +7,7 @@ public enum IconKind
     None, Play, Stop, Pause, Gear, Compile, Select, Move, Rotate, Scale, Terrain, Light, Water, Cube, Sphere, Folder, File,
     Trash, Eye, EyeOff, Plus, Minus, Close, Check, ChevronRight, ChevronDown, ChevronUp, Search, Layout, Code, Camera,
     Cloud, Image, Text, Button, Slider, Checkbox, TextBox, Panel, ProgressBar, Copy, ArrowUp, ArrowDown, Refresh, Sound, Scene, Script,
+    ImageButton, Shape,
 }
 
 /// <summary>Vector icons drawn with Skia paths in a square (so they scale and stay sharp at any size).</summary>
@@ -223,6 +224,15 @@ public static class Icons
             case IconKind.TextBox:
                 canvas.DrawRoundRect(new SKRect(P(0.08f, 0.3f).X, P(0.08f, 0.3f).Y, P(0.92f, 0.7f).X, P(0.92f, 0.7f).Y), 0.08f * size, 0.08f * size, stroke);
                 Line(0.26f, 0.4f, 0.26f, 0.6f);
+                break;
+            case IconKind.ImageButton:
+                canvas.DrawRoundRect(new SKRect(P(0.1f, 0.14f).X, P(0.1f, 0.14f).Y, P(0.9f, 0.86f).X, P(0.9f, 0.86f).Y), 0.14f * size, 0.14f * size, stroke);
+                using (var p = Poly(false, 0.24f, 0.68f, 0.42f, 0.48f, 0.56f, 0.62f, 0.64f, 0.54f, 0.76f, 0.68f)) canvas.DrawPath(p, stroke);
+                Circle(0.66f, 0.34f, 0.05f, fill);
+                break;
+            case IconKind.Shape:
+                Line(0.12f, 0.86f, 0.5f, 0.48f);
+                Circle(0.66f, 0.34f, 0.2f, stroke);
                 break;
             case IconKind.Panel:
                 canvas.DrawRoundRect(new SKRect(P(0.12f, 0.16f).X, P(0.12f, 0.16f).Y, P(0.88f, 0.84f).X, P(0.88f, 0.84f).Y), 0.08f * size, 0.08f * size, stroke);

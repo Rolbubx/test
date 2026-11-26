@@ -2,6 +2,18 @@ using SkiaSharp;
 
 namespace SolciteEngine.Gui;
 
+/// <summary>How a shape is filled: one colour, or a linear gradient from <see cref="From"/> to <see cref="To"/>.</summary>
+public readonly record struct UiFill(SKColor From, SKColor To, float Angle, bool IsGradient)
+{
+    public static UiFill Solid(SKColor color) => new(color, color, 0f, false);
+
+    public static UiFill Gradient(SKColor from, SKColor to, float angleDegrees) => new(from, to, angleDegrees, true);
+
+    public bool IsVisible => From.Alpha > 0 || (IsGradient && To.Alpha > 0);
+
+    internal UiFill Map(Func<SKColor, SKColor> f) => this with { From = f(From), To = f(To) };
+}
+
 // Widgets drawn in an exact rectangle instead of following the layout. The game's UI (UiCanvas) uses them, so the
 // HUD, menus and the editor all share the same look and input handling.
 public sealed partial class Gui
@@ -12,11 +24,14 @@ public sealed partial class Gui
         if (_window is { Regions.Count: > 0 }) CurrentRegion.MaxY = MathF.Max(CurrentRegion.MaxY, rect.Bottom);
     }
 
-    public void PanelRect(UiRect rect, SKColor fill, float radius, SKColor border, float borderWidth = 0f)
+    public void PanelRect(UiRect rect, SKColor fill, float radius, SKColor border, float borderWidth = 0f) =>
+        PanelRect(rect, UiFill.Solid(fill), radius, border, borderWidth);
+
+    public void PanelRect(UiRect rect, UiFill fill, float radius, SKColor border, float borderWidth = 0f)
     {
         Claim(rect);
-        if (fill.Alpha > 20) BlockMouse(rect);
-        FillRect(Canvas, rect, radius, fill);
+        if (fill.From.Alpha > 20 || (fill.IsGradient && fill.To.Alpha > 20)) BlockMouse(rect);
+        FillRect(rect, radius, fill);
         if (borderWidth > 0f && border.Alpha > 0)
         {
             _paint.Style = SKPaintStyle.Stroke;
@@ -32,16 +47,19 @@ public sealed partial class Gui
         DrawText(Canvas, text, rect, color, align, size, weight);
     }
 
-    public bool ButtonRect(UiRect rect, string id, string text, SKColor fill, SKColor textColor, float radius, float fontSize, bool enabled = true)
+    public bool ButtonRect(UiRect rect, string id, string text, SKColor fill, SKColor textColor, float radius, float fontSize, bool enabled = true) =>
+        ButtonRect(rect, id, text, UiFill.Solid(fill), textColor, radius, fontSize, enabled);
+
+    public bool ButtonRect(UiRect rect, string id, string text, UiFill fill, SKColor textColor, float radius, float fontSize, bool enabled = true)
     {
         Claim(rect);
         int bid = GetId(id);
         bool hovered = false, held = false, clicked = false;
         if (enabled) clicked = ButtonBehavior(bid, rect, out hovered, out held);
         float hv = Fade(bid, hovered);
-        var color = held ? Lerp(fill, SKColors.Black, 0.2f) : Lerp(fill, SKColors.White, 0.14f * hv);
-        if (!enabled) color = WithAlpha(fill, (byte)(fill.Alpha / 2));
-        FillRect(Canvas, rect, radius, color);
+        var color = fill.Map(c => held ? Lerp(c, SKColors.Black, 0.2f) : Lerp(c, SKColors.White, 0.14f * hv));
+        if (!enabled) color = fill.Map(c => WithAlpha(c, (byte)(c.Alpha / 2)));
+        FillRect(rect, radius, color);
         DrawText(Canvas, text, rect.Deflate(6f, 0f), enabled ? textColor : WithAlpha(textColor, 120), TextAlign.Center, fontSize, FontWeight.Medium);
         return clicked;
     }
@@ -108,6 +126,106 @@ public sealed partial class Gui
         _paint.ColorFilter?.Dispose();
         _paint.ColorFilter = null;
         Canvas.Restore();
+    }
+
+    /// <summary>A clickable picture: <paramref name="back"/> behind it, lighter when hovered, darker when pressed.</summary>
+    public bool ImageButtonRect(UiRect rect, string id, SKImage? image, SKColor tint, UiFill back, float radius, bool enabled = true)
+    {
+        Claim(rect);
+        int bid = GetId(id);
+        bool hovered = false, held = false, clicked = false;
+        if (enabled) clicked = ButtonBehavior(bid, rect, out hovered, out held);
+        float hv = Fade(bid, hovered);
+        if (back.IsVisible) FillRect(rect, radius, back);
+        var t = held ? Lerp(tint, SKColors.Black, 0.25f) : tint;
+        if (!enabled) t = WithAlpha(t, (byte)(t.Alpha / 2));
+        ImageRect(rect, image, t, radius);
+        if (hv > 0.01f && !held) FillRect(Canvas, rect, radius, new SKColor(255, 255, 255, (byte)(30 * hv)));
+        return clicked;
+    }
+
+    /// <summary>A straight line from <paramref name="a"/> to <paramref name="b"/> (screen pixels) with round ends.</summary>
+    public void LineRect(UiRect bounds, SKPoint a, SKPoint b, SKColor color, float thickness)
+    {
+        Claim(bounds);
+        _paint.Style = SKPaintStyle.Stroke;
+        _paint.StrokeWidth = MathF.Max(0.5f, thickness);
+        _paint.StrokeCap = SKStrokeCap.Round;
+        _paint.Color = color;
+        Canvas.DrawLine(a, b, _paint);
+        _paint.StrokeCap = SKStrokeCap.Butt;
+        _paint.Style = SKPaintStyle.Fill;
+    }
+
+    /// <summary>A rectangle, filled with <paramref name="fill"/> or (when <paramref name="filled"/> is off) outlined.</summary>
+    public void BoxRect(UiRect rect, UiFill fill, float radius, bool filled, float thickness)
+    {
+        Claim(rect);
+        if (filled) FillRect(rect, radius, fill);
+        else StrokePath(fill, rect, thickness, (c, p) => c.DrawRoundRect(rect.Deflate(thickness * 0.5f).ToSk(), radius, radius, p));
+    }
+
+    /// <summary>An ellipse that fits <paramref name="rect"/>.</summary>
+    public void EllipseRect(UiRect rect, UiFill fill, bool filled, float thickness)
+    {
+        Claim(rect);
+        if (filled) Paint(fill, rect, SKPaintStyle.Fill, 0f, (c, p) => c.DrawOval(rect.ToSk(), p));
+        else StrokePath(fill, rect, thickness, (c, p) => c.DrawOval(rect.Deflate(thickness * 0.5f).ToSk(), p));
+    }
+
+    /// <summary>A triangle pointing up that fits <paramref name="rect"/>.</summary>
+    public void TriangleRect(UiRect rect, UiFill fill, bool filled, float thickness)
+    {
+        Claim(rect);
+        var r = filled ? rect : rect.Deflate(thickness * 0.5f);
+        using var path = new SKPath();
+        path.MoveTo(r.CenterX, r.Y);
+        path.LineTo(r.Right, r.Bottom);
+        path.LineTo(r.X, r.Bottom);
+        path.Close();
+        if (filled) Paint(fill, rect, SKPaintStyle.Fill, 0f, (c, p) => c.DrawPath(path, p));
+        else StrokePath(fill, rect, thickness, (c, p) => c.DrawPath(path, p));
+    }
+
+    // ---- fills (solid or gradient) ---------------------------------------------------------------
+
+    private void FillRect(UiRect rect, float radius, UiFill fill)
+    {
+        if (!fill.IsGradient)
+        {
+            FillRect(Canvas, rect, radius, fill.From);
+            return;
+        }
+        Paint(fill, rect, SKPaintStyle.Fill, 0f, (c, p) =>
+        {
+            if (radius > 0.5f) c.DrawRoundRect(rect.ToSk(), radius, radius, p);
+            else c.DrawRect(rect.ToSk(), p);
+        });
+    }
+
+    private void StrokePath(UiFill fill, UiRect rect, float thickness, Action<SKCanvas, SKPaint> draw) =>
+        Paint(fill, rect, SKPaintStyle.Stroke, MathF.Max(0.5f, thickness), draw);
+
+    private void Paint(UiFill fill, UiRect rect, SKPaintStyle style, float strokeWidth, Action<SKCanvas, SKPaint> draw)
+    {
+        _paint.Style = style;
+        _paint.StrokeWidth = strokeWidth;
+        _paint.Color = fill.IsGradient ? SKColors.White : fill.From;
+        using var shader = fill.IsGradient ? GradientShader(rect, fill) : null;
+        _paint.Shader = shader;
+        draw(Canvas, _paint);
+        _paint.Shader = null;
+        _paint.Style = SKPaintStyle.Fill;
+    }
+
+    private static SKShader GradientShader(UiRect rect, UiFill fill)
+    {
+        float angle = fill.Angle * MathF.PI / 180f;
+        float dx = MathF.Cos(angle), dy = MathF.Sin(angle);
+        float half = MathF.Abs(rect.Width * 0.5f * dx) + MathF.Abs(rect.Height * 0.5f * dy);
+        var start = new SKPoint(rect.CenterX - dx * half, rect.CenterY - dy * half);
+        var end = new SKPoint(rect.CenterX + dx * half, rect.CenterY + dy * half);
+        return SKShader.CreateLinearGradient(start, end, new[] { fill.From, fill.To }, SKShaderTileMode.Clamp);
     }
 
     /// <summary>Dashed outline and corner handles around a rectangle (selection in the UI designer).</summary>

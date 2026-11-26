@@ -32,15 +32,22 @@ public static class UiExporter
         string v = $"u{context.NextId()}";
         context.UiElements++;
 
-        var defaults = new UiElement(element.Kind);
+        var defaults = UiElement.Create(element.Kind);
         var extra = new List<string> { $"Name = {Str(element.Name)}" };
         if (element.Text != defaults.Text) extra.Add($"Text = {Str(element.Text)}");
         if (element.Hint != defaults.Hint) extra.Add($"Hint = {Str(element.Hint)}");
         if (element.Action.Length > 0) extra.Add($"Action = {Str(element.Action)}");
         if (element.ImagePath.Length > 0) extra.Add($"ImagePath = {Str(ShipImage(context, element))}");
 
-        w.Line($"var {v} = new UiElement(global::SolciteEngine.UI.UiKind.{element.Kind})");
+        // the typed class (Frame, TextLabel...) when there is one, so the generated code reads like a script
+        if (defaults.GetType() == typeof(UiElement)) w.Line($"var {v} = new UiElement(global::SolciteEngine.UI.UiKind.{element.Kind})");
+        else w.Line($"var {v} = new global::{defaults.GetType().FullName}()");
         w.Initializer(element, defaults, extra: extra.ToArray());
+        foreach (var prop in element.Props)
+        {
+            w.Line($"{v}.Props.Add(new global::{prop.GetType().FullName}()");
+            w.Initializer(prop, Activator.CreateInstance(prop.GetType()), closing: ");");
+        }
 
         foreach (var child in element.Children)
         {

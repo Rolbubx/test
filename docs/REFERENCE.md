@@ -95,7 +95,7 @@ The check for saved files runs while the editor window is drawn, so it recompile
 
 ### Designing the game's UI
 
-Open the **UI** tab next to the Hierarchy. Add a Panel, Label, Button, Progress bar, Slider, Check box, Text box or Image (or a
+Open the **UI** tab next to the Hierarchy. Add a Panel, Label, Button, Progress bar, Slider, Check box, Text box, Image, Image button or Shape (or a
 ready-made HUD / Menu preset), click it in the viewport to select it, drag it to move it and drag its corner to resize it
 (`Snap` rounds to 8 px). Elements nest inside panels and are placed from an **anchor** of their parent (corners, edges,
 centre or stretch) plus an offset, so they stay in place at any window size; *UI scale* enlarges everything. The properties
@@ -113,6 +113,43 @@ Game.Ui.Find("PauseMenu").Visible = true;
 Game.Ui.ActionTriggered += e => { if (e.Action == "start") { /* ... */ } };   // custom button actions
 Game.Ui.Find("Volume").Changed += e => volume = e.Value;                      // slider / checkbox / text box changes
 ```
+
+#### Building UI in code
+
+Scripts can also create the UI themselves with typed elements (no `using` needed):
+
+| Class | What it is |
+|---|---|
+| `Frame` | a box that holds other elements (background, border, corners) |
+| `TextLabel` | a piece of text |
+| `TextButton` | a button with text (`Clicked` event or an `Action`) |
+| `Image` | a picture from `ImagePath`, tinted by `Tint` |
+| `ImageButton` | a clickable picture (`Clicked` / `Action`, like a `TextButton`) |
+| `BasicObject` | a simple shape: `UiShape.Line`, `Rectangle`, `Ellipse`, `Triangle` in the colour `Fill` (`Filled = false` outlines it with `Thickness`) |
+
+**Props** modify an element's look; add them to `Props` (or with `AddProp`):
+
+- `CornerProp(radius)` rounds the corners (overrides `CornerRadius`).
+- `GradientProp(from, to, rotation)` fills the background with a gradient (0° = left to right, 90° = top to bottom); on a
+  `BasicObject` it replaces the `Fill` colour.
+
+```csharp
+var card = Game.Ui.Add(new Frame
+{
+    Anchor = UiAnchor.Center, Size = new Vector2(360f, 220f),
+    Props = { new CornerProp(20f), new GradientProp(new Color4(0.1f, 0.1f, 0.3f, 0.95f), new Color4(0.5f, 0.1f, 0.4f, 0.95f), 45f) },
+});
+card.Add(new TextLabel("Game over") { Name = "Title", Offset = new Vector2(16f, 12f), FontSize = 26f, Bold = true });
+card.Add(BasicObject.Line(new Vector2(16f, 52f), new Vector2(344f, 52f), 2f));   // a separator, in pixels inside the card
+var retry = card.Add(new TextButton("Retry") { Offset = new Vector2(16f, 150f), Props = { new CornerProp(22f) } });
+retry.Clicked += _ => Game.ReloadScene();
+card.Add(new ImageButton("Assets/UI/home.png") { Anchor = UiAnchor.BottomRight, Offset = new Vector2(-16f, -16f), Size = new Vector2(48f, 48f) });
+
+Game.Ui.Find<TextLabel>("Title")!.Text = "You win!";   // Find<T> returns the element as its class
+```
+
+The editor's UI tab adds the same elements (ImageButton and Shape buttons included) and has a **Props** section to add or
+remove a CornerProp and a GradientProp on the selected element; Compile writes them into the generated game.
 
 Not saved in the map: C# lambdas set in code (`OnUpdate`, `OnKeyDown`...). Each scene's Volume (post-processing settings) is saved; the effects themselves are added in
 `Program.cs`. Everything else in the scene is written, including objects you created in code.

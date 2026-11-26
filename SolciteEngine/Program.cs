@@ -343,17 +343,18 @@ static void BuildDemoUi(Window window)
 {
     var ui = window.GameUi;
 
-    var hud = ui.Add(new UiElement(UiKind.Panel) { Name = "HUD", Offset = new Vector2(20f, 20f), Size = new Vector2(280f, 84f) });
-    ui.Add(new UiElement(UiKind.Label) { Name = "Title", Text = "SolciteEngine demo", Offset = new Vector2(16f, 10f), Size = new Vector2(240f, 24f), FontSize = 16f, Bold = true }, hud);
-    var fps = ui.Add(new UiElement(UiKind.Label) { Name = "Fps", Text = "FPS", Offset = new Vector2(16f, 36f), Size = new Vector2(240f, 20f), FontSize = 13f, TextColor = new Color4(0.7f, 0.75f, 0.85f, 1f) }, hud);
+    var hud = ui.Add(new Frame { Name = "HUD", Offset = new Vector2(20f, 20f), Size = new Vector2(280f, 84f) });
+    ui.Add(new TextLabel { Name = "Title", Text = "SolciteEngine demo", Offset = new Vector2(16f, 10f), Size = new Vector2(240f, 24f), FontSize = 16f, Bold = true }, hud);
+    var fps = ui.Add(new TextLabel { Name = "Fps", Text = "FPS", Offset = new Vector2(16f, 36f), Size = new Vector2(240f, 20f), FontSize = 13f, TextColor = new Color4(0.7f, 0.75f, 0.85f, 1f) }, hud);
     ui.Add(new UiElement(UiKind.ProgressBar) { Name = "Health", Value = 0.8f, Offset = new Vector2(16f, 58f), Size = new Vector2(248f, 12f), Fill = new Color4(0.25f, 0.8f, 0.45f, 1f) }, hud);
 
-    ui.Add(new UiElement(UiKind.Button) { Name = "MenuButton", Text = "Menu", Anchor = UiAnchor.TopRight, Offset = new Vector2(-20f, 20f), Size = new Vector2(110f, 40f), Action = "toggle:PauseMenu" });
+    ui.Add(new TextButton { Name = "MenuButton", Text = "Menu", Anchor = UiAnchor.TopRight, Offset = new Vector2(-20f, 20f), Size = new Vector2(110f, 40f), Action = "toggle:PauseMenu",
+        Props = { new CornerProp(20f), new GradientProp(new Color4(0.30f, 0.55f, 1f, 1f), new Color4(0.62f, 0.30f, 1f, 1f)) } });
 
-    var menu = ui.Add(new UiElement(UiKind.Panel) { Name = "PauseMenu", Anchor = UiAnchor.Center, Size = new Vector2(340f, 250f), Visible = false });
-    ui.Add(new UiElement(UiKind.Label) { Name = "MenuTitle", Text = "Paused", Anchor = UiAnchor.Top, Offset = new Vector2(0f, 20f), Size = new Vector2(300f, 36f), FontSize = 26f, Bold = true, Align = SolciteEngine.Gui.TextAlign.Center }, menu);
-    ui.Add(new UiElement(UiKind.Button) { Name = "Resume", Text = "Resume", Anchor = UiAnchor.Center, Offset = new Vector2(0f, -10f), Size = new Vector2(240f, 46f), Action = "hide:PauseMenu" }, menu);
-    ui.Add(new UiElement(UiKind.Button) { Name = "Quit", Text = "Quit", Anchor = UiAnchor.Center, Offset = new Vector2(0f, 50f), Size = new Vector2(240f, 46f), Background = new Color4(0.85f, 0.3f, 0.3f, 1f), Action = "quit" }, menu);
+    var menu = ui.Add(new Frame { Name = "PauseMenu", Anchor = UiAnchor.Center, Size = new Vector2(340f, 250f), Visible = false });
+    ui.Add(new TextLabel { Name = "MenuTitle", Text = "Paused", Anchor = UiAnchor.Top, Offset = new Vector2(0f, 20f), Size = new Vector2(300f, 36f), FontSize = 26f, Bold = true, Align = SolciteEngine.Gui.TextAlign.Center }, menu);
+    ui.Add(new TextButton { Name = "Resume", Text = "Resume", Anchor = UiAnchor.Center, Offset = new Vector2(0f, -10f), Size = new Vector2(240f, 46f), Action = "hide:PauseMenu" }, menu);
+    ui.Add(new TextButton { Name = "Quit", Text = "Quit", Anchor = UiAnchor.Center, Offset = new Vector2(0f, 50f), Size = new Vector2(240f, 46f), Background = new Color4(0.85f, 0.3f, 0.3f, 1f), Action = "quit" }, menu);
 
     // Scripts and game code change elements by name, every frame if they like.
     window.OnFrameUpdate = dt => fps.Text = $"{1f / MathF.Max(dt, 0.0001f):0} FPS   (F2: debug panels)";

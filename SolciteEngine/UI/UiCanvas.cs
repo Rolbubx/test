@@ -31,7 +31,8 @@ public sealed class UiCanvas : IDisposable
 
     // ---- the tree --------------------------------------------------------------------------------
 
-    public UiElement Add(UiElement element, UiElement? parent = null)
+    /// <summary>Adds <paramref name="element"/> at the top level or inside <paramref name="parent"/> and returns it as its own type: <c>var play = Game.Ui.Add(new TextButton("Play"))</c>.</summary>
+    public T Add<T>(T element, UiElement? parent = null) where T : UiElement
     {
         if (parent != null) parent.Add(element);
         else
@@ -64,6 +65,10 @@ public sealed class UiCanvas : IDisposable
     }
 
     public UiElement? Find(string name) => Traverse().FirstOrDefault(e => e.Name == name);
+
+    /// <summary>The element called <paramref name="name"/> if it is a <typeparamref name="T"/>: <c>Game.Ui.Find&lt;TextLabel&gt;("Score")</c>.</summary>
+    public T? Find<T>(string name) where T : UiElement => Traverse().OfType<T>().FirstOrDefault(e => e.Name == name);
+
 
     public string UniqueName(string baseName)
     {
@@ -179,29 +184,30 @@ public sealed class UiCanvas : IDisposable
         var weight = e.Bold ? FontWeight.SemiBold : FontWeight.Regular;
         var text = ToSk(e.TextColor);
         var back = ToSk(e.Background);
-        float radius = e.CornerRadius * s;
+        float radius = e.EffectiveCornerRadius * s;
+        var backFill = BackFill(e, back);
         bool live = interactive && e.Enabled;
 
         g.PushId(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(e));
         switch (e.Kind)
         {
             case UiKind.Panel:
-                g.PanelRect(rect, back, radius, ToSk(e.BorderColor), e.BorderWidth);
+                g.PanelRect(rect, backFill, radius, ToSk(e.BorderColor), e.BorderWidth);
                 break;
 
             case UiKind.Label:
-                if (back.Alpha > 0) g.PanelRect(rect, back, radius, SKColors.Transparent);
+                if (backFill.IsVisible) g.PanelRect(rect, backFill, radius, SKColors.Transparent);
                 g.LabelRect(rect, e.Text, text, font, weight, e.Align);
                 break;
 
             case UiKind.Button:
                 if (live)
                 {
-                    if (g.ButtonRect(rect, "button", e.Text, back, text, radius, font)) Click(e);
+                    if (g.ButtonRect(rect, "button", e.Text, backFill, text, radius, font)) Click(e);
                 }
                 else
                 {
-                    g.PanelRect(rect, e.Enabled ? back : Dim(back), radius, SKColors.Transparent);
+                    g.PanelRect(rect, e.Enabled ? backFill : backFill with { From = Dim(backFill.From), To = Dim(backFill.To) }, radius, SKColors.Transparent);
                     g.LabelRect(rect, e.Text, text, font, FontWeight.Medium, TextAlign.Center);
                 }
                 break;
@@ -265,12 +271,51 @@ public sealed class UiCanvas : IDisposable
                 break;
 
             case UiKind.Image:
+                if (backFill.IsVisible) g.PanelRect(rect, backFill, radius, SKColors.Transparent);
                 g.ImageRect(rect, GetImage(e.ImagePath), ToSk(e.Tint), radius);
+                break;
+
+            case UiKind.ImageButton:
+                if (g.ImageButtonRect(rect, "imagebutton", GetImage(e.ImagePath), ToSk(e.Tint), backFill, radius, live) && live) Click(e);
+                break;
+
+            case UiKind.Shape:
+                DrawShape(g, e, rect, s);
                 break;
         }
 
         foreach (var child in e.Children.ToArray()) DrawElement(g, child, rect, interactive);
         g.PopId();
+    }
+
+    /// <summary>The background of <paramref name="e"/>: its <see cref="GradientProp"/> if it has one, else <paramref name="back"/>.</summary>
+    private static UiFill BackFill(UiElement e, SKColor back) =>
+        e.GetProp<GradientProp>() is { } gradient
+            ? UiFill.Gradient(ToSk(gradient.From), ToSk(gradient.To), gradient.Rotation)
+            : UiFill.Solid(back);
+
+    private static void DrawShape(Gui.Gui g, UiElement e, UiRect rect, float scale)
+    {
+        // a shape is drawn in its Fill colour (or its gradient)
+        var fill = BackFill(e, ToSk(e.Fill));
+        float thickness = e.Thickness * scale;
+        switch (e.Shape)
+        {
+            case UiShape.Line:
+                var a = new SKPoint(rect.X + e.LineStart.X * rect.Width, rect.Y + e.LineStart.Y * rect.Height);
+                var b = new SKPoint(rect.X + e.LineEnd.X * rect.Width, rect.Y + e.LineEnd.Y * rect.Height);
+                g.LineRect(rect, a, b, fill.From, thickness);
+                break;
+            case UiShape.Rectangle:
+                g.BoxRect(rect, fill, e.EffectiveCornerRadius * scale, e.Filled, thickness);
+                break;
+            case UiShape.Ellipse:
+                g.EllipseRect(rect, fill, e.Filled, thickness);
+                break;
+            case UiShape.Triangle:
+                g.TriangleRect(rect, fill, e.Filled, thickness);
+                break;
+        }
     }
 
     private static float Fraction(UiElement e) => e.Max > e.Min ? (e.Value - e.Min) / (e.Max - e.Min) : 0f;

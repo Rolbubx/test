@@ -13,6 +13,19 @@ public enum UiKind
     Checkbox,
     TextBox,
     Image,
+    ImageButton,
+
+    /// <summary>A <see cref="BasicObject"/>: line, rectangle, ellipse or triangle.</summary>
+    Shape,
+}
+
+/// <summary>The shape a <see cref="BasicObject"/> draws.</summary>
+public enum UiShape
+{
+    Line,
+    Rectangle,
+    Ellipse,
+    Triangle,
 }
 
 /// <summary>Which point of the parent an element is attached to.</summary>
@@ -34,10 +47,12 @@ public enum UiAnchor
 
 /// <summary>
 /// One element of a game UI (see <see cref="UiCanvas"/>): a panel, label, button, progress bar, slider, check box,
-/// text box or image. Elements nest, are placed relative to an anchor of their parent, and are found by name:
-/// <c>Game.Ui.Find("Health")</c>.
+/// text box, image, image button or shape. Elements nest, are placed relative to an anchor of their parent, and are found
+/// by name: <c>Game.Ui.Find("Health")</c>. Scripts usually create them with the typed classes <see cref="Frame"/>,
+/// <see cref="TextLabel"/>, <see cref="TextButton"/>, <see cref="Image"/>, <see cref="ImageButton"/> and
+/// <see cref="BasicObject"/>, and style them with props (<see cref="CornerProp"/>, <see cref="GradientProp"/>).
 /// </summary>
-public sealed class UiElement
+public class UiElement
 {
     private readonly List<UiElement> _children = new();
 
@@ -70,6 +85,25 @@ public sealed class UiElement
     public string ImagePath { get; set; } = "";
     public Color4 Tint { get; set; } = Color4.White;
 
+    // shapes (BasicObject)
+    /// <summary>What a <see cref="BasicObject"/> draws.</summary>
+    public UiShape Shape { get; set; } = UiShape.Rectangle;
+
+    /// <summary>Width of a line, or of the outline of a shape that is not <see cref="Filled"/>.</summary>
+    public float Thickness { get; set; } = 2f;
+
+    /// <summary>A rectangle, ellipse or triangle is filled (true) or only outlined with <see cref="Thickness"/> (false).</summary>
+    public bool Filled { get; set; } = true;
+
+    /// <summary>Start of a line, as a fraction of the element's box: (0, 0) = top-left, (1, 1) = bottom-right.</summary>
+    public Vector2 LineStart { get; set; } = new(0f, 0.5f);
+
+    /// <summary>End of a line, as a fraction of the element's box.</summary>
+    public Vector2 LineEnd { get; set; } = new(1f, 0.5f);
+
+    /// <summary>Modifiers that change the look: <see cref="CornerProp"/> (rounded corners), <see cref="GradientProp"/> (gradient background).</summary>
+    public List<UiProp> Props { get; } = new();
+
     // behaviour
     public float Value { get; set; }
     public float Min { get; set; }
@@ -90,12 +124,42 @@ public sealed class UiElement
     /// <summary>Raised when the value of a slider, check box or text box was changed by the user.</summary>
     public event Action<UiElement>? Changed;
 
-    public bool IsInteractive => Kind is UiKind.Button or UiKind.Slider or UiKind.Checkbox or UiKind.TextBox;
+    public bool IsInteractive => Kind is UiKind.Button or UiKind.ImageButton or UiKind.Slider or UiKind.Checkbox or UiKind.TextBox;
+
+    /// <summary>The first prop of type <typeparamref name="T"/>, or null.</summary>
+    public T? GetProp<T>() where T : UiProp => Props.OfType<T>().FirstOrDefault();
+
+    /// <summary>Adds a prop (replacing one of the same type) and returns it: <c>frame.AddProp(new CornerProp(12f))</c>.</summary>
+    public T AddProp<T>(T prop) where T : UiProp
+    {
+        Props.RemoveAll(p => p.GetType() == prop.GetType());
+        Props.Add(prop);
+        return prop;
+    }
+
+    /// <summary>Removes the props of type <typeparamref name="T"/>.</summary>
+    public void RemoveProp<T>() where T : UiProp => Props.RemoveAll(p => p is T);
+
+    /// <summary>The corner radius actually drawn: the <see cref="CornerProp"/> if there is one, else <see cref="CornerRadius"/>.</summary>
+    public float EffectiveCornerRadius => GetProp<CornerProp>()?.Radius ?? CornerRadius;
+
+    /// <summary>A new element of <paramref name="kind"/>, as its typed class (<see cref="Frame"/>, <see cref="TextLabel"/>...) when it has one.</summary>
+    public static UiElement Create(UiKind kind) => kind switch
+    {
+        UiKind.Panel => new Frame(),
+        UiKind.Label => new TextLabel(),
+        UiKind.Button => new TextButton(),
+        UiKind.Image => new Image(),
+        UiKind.ImageButton => new ImageButton(),
+        UiKind.Shape => new BasicObject(),
+        _ => new UiElement(kind),
+    };
 
     internal void RaiseClicked() => Clicked?.Invoke(this);
     internal void RaiseChanged() => Changed?.Invoke(this);
 
-    public UiElement Add(UiElement child)
+    /// <summary>Puts <paramref name="child"/> inside this element and returns it as its own type.</summary>
+    public T Add<T>(T child) where T : UiElement
     {
         child.Parent?._children.Remove(child);
         child.Parent = this;
@@ -120,13 +184,14 @@ public sealed class UiElement
     /// <summary>A copy of this element with copies of all its children (not attached to any parent).</summary>
     public UiElement Clone()
     {
-        var copy = new UiElement(Kind)
-        {
-            Name = Name, Anchor = Anchor, Offset = Offset, Size = Size, Text = Text, Hint = Hint, FontSize = FontSize,
-            Bold = Bold, Align = Align, TextColor = TextColor, Background = Background, Fill = Fill, BorderColor = BorderColor,
-            BorderWidth = BorderWidth, CornerRadius = CornerRadius, ImagePath = ImagePath, Tint = Tint, Value = Value,
-            Min = Min, Max = Max, Checked = Checked, Visible = Visible, Enabled = Enabled, Action = Action,
-        };
+        var copy = Create(Kind);
+        SolciteEngine.Core.ParameterAccess.CopyValues(this, copy); // numbers, colours, vectors, enums, flags
+        copy.Name = Name;
+        copy.Text = Text;
+        copy.Hint = Hint;
+        copy.ImagePath = ImagePath;
+        copy.Action = Action;
+        foreach (var prop in Props) copy.Props.Add(prop.Clone());
         foreach (var child in _children) copy.Add(child.Clone());
         return copy;
     }
@@ -176,6 +241,16 @@ public sealed class UiElement
                 break;
             case UiKind.Image:
                 Size = new Vector2(128f, 128f);
+                CornerRadius = 0f;
+                break;
+            case UiKind.ImageButton:
+                Size = new Vector2(96f, 96f);
+                Background = new Color4(1f, 1f, 1f, 0.08f);
+                CornerRadius = 10f;
+                break;
+            case UiKind.Shape:
+                Size = new Vector2(120f, 80f);
+                Fill = Color4.White;
                 CornerRadius = 0f;
                 break;
         }
