@@ -12,14 +12,15 @@ public enum FontWeight
 }
 
 /// <summary>
-/// The UI's real fonts: JetBrains Mono (Regular, Medium, SemiBold, Bold) loaded from <c>Assets/Fonts</c>. If a file is
-/// missing the system font is used. Change <see cref="Family"/> to "Inter" for the proportional font that is also
-/// bundled, or put your own <c>&lt;Family&gt;-Regular.ttf</c> (or .otf) files there.
+/// The UI's real fonts: Inter (Regular, Medium, SemiBold, Bold), the same typeface as the Unity editor's interface,
+/// loaded from <c>Assets/Fonts</c> (SIL Open Font License). If a file is missing the system font is used. Change
+/// <see cref="Family"/> to "JetBrainsMono" for the monospaced font that is also bundled, or put your own
+/// <c>&lt;Family&gt;-Regular.ttf</c> (or .otf) files there.
 /// </summary>
 public sealed class UiFonts : IDisposable
 {
     /// <summary>The font family: files named &lt;Family&gt;-&lt;Weight&gt;.ttf or .otf in Assets/Fonts.</summary>
-    public const string Family = "JetBrainsMono";
+    public const string Family = "Inter";
 
     private readonly Dictionary<FontWeight, SKTypeface> _faces = new();
     private readonly Dictionary<(int size, FontWeight weight), SKFont> _fonts = new();
