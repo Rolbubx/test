@@ -155,12 +155,16 @@ SolciteEngine/publish-game.ps1 -NoAot     # Windows: trimmed ReadyToRun single-f
 
 GitHub Actions (`.github/workflows/`):
 
-- **CI** (`ci.yml`) runs on pushes to `main`/`master` and on pull requests. It builds the `Editor` and `Game`
-  configurations on Ubuntu and Windows, builds the generated game project, and checks that the editor build contains no
-  game.
-- **Release** (`release.yml`) runs when a `v*` tag is pushed. It publishes the editor and the game for `win-x64` and
-  `linux-x64`, checks that the editor package contains no game, and attaches the archives to a GitHub release. It can
-  also be started manually to produce the archives as workflow artifacts.
+- **CI/CD** (`ci.yml`) runs on every push and pull request. It builds the `Editor` and `Game` configurations on
+  Ubuntu and Windows, builds the generated game project, checks that the editor build contains no game, and runs the
+  tests (`tests/SolciteEngine.Tests`, xUnit).
+- On a push to `main` (or a `v*` tag, or a manual run on `main`) it then publishes the editor, the game and the
+  downloader (`SolciteEngineDownloader.exe`) for `win-x64` and `linux-x64` and attaches them to a GitHub release, **only
+  if the test gate passes**: at least 97% of all tests pass and **no critical test fails**. A tag `v1.2.3` gives release
+  `v1.2.3`; a push to `main` gives `v<Version>.<run number>` (e.g. `v0.1.0.42`, `<Version>` from `SolciteEngine.csproj`).
+- Critical tests are marked `[Fact, Trait(Critical.Category, Critical.Value)]` (start-up, loading and saves). The gate is
+  `.github/scripts/test_gate.py`; it reads the TRX reports and writes a summary on the workflow run. Run the tests
+  locally with `dotnet test tests/SolciteEngine.Tests` (critical only: add `--filter Category=Critical`).
 
 ## Documentation
 

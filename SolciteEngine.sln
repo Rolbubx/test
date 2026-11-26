@@ -1,8 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# 
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SolciteEngine", "SolciteEngine\SolciteEngine.csproj", "{0C208FB2-CA4D-448D-8861-0F0B952129AB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SolciteEngineDownloader", "SolciteEngineDownloader\SolciteEngineDownloader.csproj", "{7D1A6C52-3B0E-4F1D-9A55-2E8C4B7F1A90}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{C5B41BBA-DBEF-4DA0-9B8B-DDC30247DE90}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SolciteEngine.Tests", "tests\SolciteEngine.Tests\SolciteEngine.Tests.csproj", "{C7DFAC92-CA65-424A-996E-DF567760E3AB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -28,5 +33,15 @@ Global
 		{7D1A6C52-3B0E-4F1D-9A55-2E8C4B7F1A90}.Editor|Any CPU.Build.0 = Release|Any CPU
 		{7D1A6C52-3B0E-4F1D-9A55-2E8C4B7F1A90}.Game|Any CPU.ActiveCfg = Release|Any CPU
 		{7D1A6C52-3B0E-4F1D-9A55-2E8C4B7F1A90}.Game|Any CPU.Build.0 = Release|Any CPU
+		{C7DFAC92-CA65-424A-996E-DF567760E3AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C7DFAC92-CA65-424A-996E-DF567760E3AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C7DFAC92-CA65-424A-996E-DF567760E3AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C7DFAC92-CA65-424A-996E-DF567760E3AB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C7DFAC92-CA65-424A-996E-DF567760E3AB}.Editor|Any CPU.ActiveCfg = Debug|Any CPU
+		{C7DFAC92-CA65-424A-996E-DF567760E3AB}.Editor|Any CPU.Build.0 = Debug|Any CPU
+		{C7DFAC92-CA65-424A-996E-DF567760E3AB}.Game|Any CPU.ActiveCfg = Debug|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C7DFAC92-CA65-424A-996E-DF567760E3AB} = {C5B41BBA-DBEF-4DA0-9B8B-DDC30247DE90}
 	EndGlobalSection
 EndGlobal
