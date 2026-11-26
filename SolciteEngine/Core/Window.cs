@@ -299,7 +299,7 @@ public sealed class Window : GameWindow
             double t = _splash.Elapsed.TotalSeconds;
             var g = Ui.Gui;
             if (g.Begin("Splash", Viewport, WindowFlags.Fixed | WindowFlags.Panel | WindowFlags.NoScroll))
-                g.DrawSplash(Viewport, t < 1.0 ? "Loading engine..." : "Loading assets...", (float)(t / SplashSeconds));
+                g.DrawSplash(Viewport, t < 1.0 ? "Loading engine..." : "Loading assets...", (float)(t / SplashSeconds), 1f, (float)t);
             g.End();
             Ui.End();
             SwapBuffers();
